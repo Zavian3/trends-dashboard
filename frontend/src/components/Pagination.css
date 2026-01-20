@@ -1,0 +1,120 @@
+.pagination-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px;
+  background: var(--white);
+  border-top: 1px solid var(--lavender);
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.pagination-info {
+  color: var(--taupe-grey);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pagination-btn {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 8px;
+  border: 2px solid var(--lavender);
+  background: var(--white);
+  color: var(--taupe-grey);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  border-color: var(--vintage-lavender);
+  color: var(--vintage-lavender);
+  background: var(--lavender);
+}
+
+.pagination-btn.active {
+  background: var(--vintage-lavender);
+  color: var(--white);
+  border-color: var(--vintage-lavender);
+}
+
+.pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pagination-first,
+.pagination-last {
+  font-size: 1.1rem;
+}
+
+.pagination-prev,
+.pagination-next {
+  font-size: 1.3rem;
+}
+
+.pagination-size {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pagination-select {
+  padding: 8px 12px;
+  border: 2px solid var(--lavender);
+  border-radius: 6px;
+  background: var(--white);
+  color: var(--graphite);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.pagination-select:focus {
+  border-color: var(--vintage-lavender);
+  box-shadow: 0 0 0 3px rgba(32, 18, 110, 0.1);
+}
+
+.pagination-select:hover {
+  border-color: var(--vintage-lavender);
+}
+
+.pagination-size-label {
+  color: var(--taupe-grey);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .pagination-container {
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .pagination-info {
+    order: 3;
+  }
+  
+  .pagination-controls {
+    order: 1;
+  }
+  
+  .pagination-size {
+    order: 2;
+  }
+}

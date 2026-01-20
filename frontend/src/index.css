@@ -1,0 +1,68 @@
+:root {
+  /* Primary Brand Colors */
+  --vintage-lavender: rgb(32, 18, 110);
+  --primary-purple: rgb(150, 120, 220);
+  --primary-blue: rgb(0, 100, 180);
+  --primary-teal: rgb(0, 130, 115);
+  
+  /* Background Colors */
+  --lavender: rgb(249, 247, 253);
+  --white: rgb(255, 255, 255);
+  --background-light: rgb(249, 247, 253);
+  
+  /* Text Colors */
+  --carbon-black: rgb(0, 0, 0);
+  --taupe-grey: rgb(32, 18, 110);
+  --graphite: rgb(32, 18, 110);
+  --text-dark: rgb(32, 18, 110);
+  
+  /* Border Colors */
+  --border-dark: rgb(32, 18, 110);
+  --border-light: rgb(236, 236, 236);
+  --border-lavender: rgb(223, 213, 243);
+  
+  /* Utilities */
+  --shadow: rgba(32, 18, 110, 0.1);
+  --shadow-md: rgba(32, 18, 110, 0.15);
+  --shadow-lg: rgba(32, 18, 110, 0.2);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--lavender);
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--lavender);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--vintage-lavender);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--taupe-grey);
+}
