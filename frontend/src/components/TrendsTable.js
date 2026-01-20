@@ -45,8 +45,6 @@ const TrendsTable = ({
   const handleSelectAll = () => {
     if (allVisibleSelected) {
       // Deselect all visible trends
-      const visibleTrendIds = trends.map(t => t.id);
-      const newSelected = selectedTrends.filter(id => !visibleTrendIds.includes(id));
       trends.forEach(trend => {
         if (selectedTrends.includes(trend.id)) {
           onTrendSelect(trend.id);
