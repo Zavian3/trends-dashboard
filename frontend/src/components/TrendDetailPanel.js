@@ -62,7 +62,6 @@ const TrendDetailPanel = ({ trend, onClose, isAdmin, onApprove, onDisapprove }) 
         }
       );
       setCurrentTrend(response.data.trend);
-      setSelectedTrendId(relatedTrendId);
     } catch (error) {
       console.error('Error fetching related trend:', error);
     } finally {
