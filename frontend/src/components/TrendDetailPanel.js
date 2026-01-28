@@ -6,7 +6,6 @@ import './TrendDetailPanel.css';
 const TrendDetailPanel = ({ trend, onClose, isAdmin, onApprove, onDisapprove }) => {
   const { API_URL } = useAuth();
   const [relatedTrends, setRelatedTrends] = useState([]);
-  const [selectedTrendId, setSelectedTrendId] = useState(trend.id);
   const [currentTrend, setCurrentTrend] = useState(trend);
   const [loadingRelated, setLoadingRelated] = useState(false);
 
@@ -80,11 +79,6 @@ const TrendDetailPanel = ({ trend, onClose, isAdmin, onApprove, onDisapprove }) 
   const formatTimeHorizon = (timeHorizon) => {
     if (!timeHorizon) return '';
     return timeHorizon.replace(/_/g, ' ');
-  };
-
-  const capitalizeFirst = (str) => {
-    if (!str) return '';
-    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
   };
 
   const capitalizeWords = (str) => {
@@ -245,7 +239,7 @@ const TrendDetailPanel = ({ trend, onClose, isAdmin, onApprove, onDisapprove }) 
   const parseWorkConsequences = (gevolgenWerk) => {
     if (!gevolgenWerk) return [];
     // Split by newlines, bullet points, or numbers
-    const items = gevolgenWerk.split(/[\n•\-\d+\.\)]/g)
+    const items = gevolgenWerk.split(/[\n•\-\d+.)]/g)
       .map(item => item.trim())
       .filter(item => item.length > 0);
     return items;

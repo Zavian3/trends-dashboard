@@ -81,10 +81,6 @@ const Filters = ({
     onFilterChange({ [field]: values });
   };
 
-  const clearFilter = (field) => {
-    onFilterChange({ [field]: [] });
-  };
-
   const clearAllFilters = () => {
     onFilterChange({
       status: [],
