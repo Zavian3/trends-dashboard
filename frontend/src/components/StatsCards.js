@@ -122,7 +122,7 @@ const StatsCards = ({ stats }) => {
 
       <div className="stats-card">
         <div className="stats-card-header">
-          <h3>By Department</h3>
+          <h3>By Sector</h3>
           <button className="expand-btn" onClick={() => handleExpandCard('department')}>⤢</button>
         </div>
         <div className="stats-card-content">
@@ -157,7 +157,7 @@ const StatsCards = ({ stats }) => {
                 {expandedCard === 'overview' && 'Top Trends Overview'}
                 {expandedCard === 'impact' && 'Highest Impact Trends'}
                 {expandedCard === 'category' && 'Trends by Category'}
-                {expandedCard === 'department' && 'Trends by Department'}
+                {expandedCard === 'department' && 'Trends by Sector'}
               </h2>
               <button className="close-btn" onClick={handleCloseModal}>×</button>
             </div>

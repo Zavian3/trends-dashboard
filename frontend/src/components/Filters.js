@@ -1,5 +1,71 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import './Filters.css';
+
+const MultiSelectDropdown = ({ label, options, selectedValues, onChange, keyField = 'value', labelField = 'label' }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleToggle = (value) => {
+    const newValues = selectedValues.includes(value)
+      ? selectedValues.filter(v => v !== value)
+      : [...selectedValues, value];
+    onChange(newValues);
+  };
+
+  const getDisplayText = () => {
+    if (selectedValues.length === 0) return label;
+    if (selectedValues.length === 1) {
+      const option = options.find(opt => opt[keyField] === selectedValues[0]);
+      return option ? option[labelField] : label;
+    }
+    return `${label} (${selectedValues.length})`;
+  };
+
+  return (
+    <div className="multi-select-dropdown" ref={dropdownRef}>
+      <button
+        className={`multi-select-button ${selectedValues.length > 0 ? 'has-selection' : ''}`}
+        onClick={() => setIsOpen(!isOpen)}
+        type="button"
+      >
+        <span className="multi-select-text">{getDisplayText()}</span>
+        <svg className={`dropdown-arrow ${isOpen ? 'open' : ''}`} width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M2 4L6 8L10 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+      
+      {isOpen && (
+        <div className="multi-select-menu">
+          {options.length === 0 ? (
+            <div className="multi-select-empty">No options available</div>
+          ) : (
+            options.map((option) => (
+              <label key={option[keyField]} className="multi-select-option">
+                <input
+                  type="checkbox"
+                  checked={selectedValues.includes(option[keyField])}
+                  onChange={() => handleToggle(option[keyField])}
+                />
+                <span className="checkbox-custom"></span>
+                <span className="option-label">{option[labelField]}</span>
+              </label>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const Filters = ({ 
   filters, 
@@ -11,149 +77,178 @@ const Filters = ({
   onViewModeChange,
   isAdmin 
 }) => {
-  const handleChange = (field, value) => {
-    onFilterChange({ [field]: value });
+  const handleMultiSelectChange = (field, values) => {
+    onFilterChange({ [field]: values });
   };
 
   const clearFilter = (field) => {
-    onFilterChange({ [field]: '' });
+    onFilterChange({ [field]: [] });
   };
 
-  const filteredCategories = filters.department_name
-    ? categories.filter(cat => cat.department === filters.department_name)
-    : categories;
+  const clearAllFilters = () => {
+    onFilterChange({
+      status: [],
+      department_name: [],
+      category: [],
+      sub_category: [],
+      time_horizon: [],
+      scope: [],
+      impact_label: []
+    });
+  };
 
-  const filteredSubcategories = filters.category
-    ? subcategories.filter(sub => sub.category_name === filters.category)
-    : subcategories;
+  // Prepare options for dropdowns
+  const departmentOptions = departments.map(dept => ({ value: dept.name, label: dept.name }));
+  const categoryOptions = categories.map(cat => ({ value: cat.category_name, label: cat.category_name }));
+  const subcategoryOptions = subcategories.map(sub => ({ value: sub.sub_category_name, label: sub.sub_category_name }));
+  
+  const timeHorizonOptions = [
+    { value: 'short_term', label: 'Short term' },
+    { value: 'medium_term', label: 'Medium term' },
+    { value: 'long_term', label: 'Long term' }
+  ];
+
+  const scopeOptions = [
+    { value: 'local', label: 'Local' },
+    { value: 'regional', label: 'Regional' },
+    { value: 'national', label: 'National' },
+    { value: 'international', label: 'International' }
+  ];
+
+  const impactOptions = [
+    { value: 'Very High', label: 'Very High' },
+    { value: 'High', label: 'High' },
+    { value: 'Medium', label: 'Medium' },
+    { value: 'Low', label: 'Low' }
+  ];
+
+  const statusOptions = [
+    { value: 'draft', label: 'Draft (Pending Approval)' },
+    { value: 'confirmed', label: 'Confirmed' }
+  ];
+
+  // Calculate total active filters
+  const totalActiveFilters = Object.values(filters).reduce((sum, filter) => {
+    return sum + (Array.isArray(filter) ? filter.length : (filter ? 1 : 0));
+  }, 0);
 
   return (
     <div className="filters-container">
       <div className="filters-header">
-        <span className="filters-label">Filters</span>
+        <span className="filters-label">
+          Filters {totalActiveFilters > 0 && <span className="filter-count">({totalActiveFilters})</span>}
+        </span>
+        {totalActiveFilters > 0 && (
+          <button className="clear-all-btn" onClick={clearAllFilters}>Clear All</button>
+        )}
       </div>
 
       <div className="filters-row">
         {isAdmin && (
           <div className="filter-group">
-            <select
-              value={filters.status}
-              onChange={(e) => handleChange('status', e.target.value)}
-              className="filter-select filter-status"
-            >
-              <option value="">All Trends</option>
-              <option value="draft">Draft (Pending Approval)</option>
-              <option value="confirmed">Confirmed</option>
-            </select>
+            <MultiSelectDropdown
+              label="Status"
+              options={statusOptions}
+              selectedValues={filters.status || []}
+              onChange={(values) => handleMultiSelectChange('status', values)}
+            />
           </div>
         )}
 
         <div className="filter-group">
-          <select
-            value={filters.category}
-            onChange={(e) => handleChange('category', e.target.value)}
-            className="filter-select"
-          >
-            <option value="">Category</option>
-            {filteredCategories.map(cat => (
-              <option key={cat.id} value={cat.category_name}>
-                {cat.category_name}
-              </option>
-            ))}
-          </select>
+          <MultiSelectDropdown
+            label="Sector"
+            options={departmentOptions}
+            selectedValues={filters.department_name || []}
+            onChange={(values) => handleMultiSelectChange('department_name', values)}
+          />
         </div>
 
         <div className="filter-group">
-          <select
-            value={filters.sub_category}
-            onChange={(e) => handleChange('sub_category', e.target.value)}
-            className="filter-select"
-          >
-            <option value="">Subcategory</option>
-            {filteredSubcategories.map(sub => (
-              <option key={sub.id} value={sub.sub_category_name}>
-                {sub.sub_category_name}
-              </option>
-            ))}
-          </select>
+          <MultiSelectDropdown
+            label="Category"
+            options={categoryOptions}
+            selectedValues={filters.category || []}
+            onChange={(values) => handleMultiSelectChange('category', values)}
+          />
         </div>
 
         <div className="filter-group">
-          <select
-            value={filters.department_name}
-            onChange={(e) => handleChange('department_name', e.target.value)}
-            className="filter-select"
-          >
-            <option value="">Department</option>
-            {departments.map(dept => (
-              <option key={dept.id} value={dept.name}>
-                {dept.name}
-              </option>
-            ))}
-          </select>
+          <MultiSelectDropdown
+            label="Subcategory"
+            options={subcategoryOptions}
+            selectedValues={filters.sub_category || []}
+            onChange={(values) => handleMultiSelectChange('sub_category', values)}
+          />
         </div>
 
         <div className="filter-group">
-          <select
-            value={filters.time_horizon}
-            onChange={(e) => handleChange('time_horizon', e.target.value)}
-            className="filter-select"
-          >
-            <option value="">Time Horizon</option>
-            <option value="short">Short term</option>
-            <option value="medium">Medium term</option>
-            <option value="long">Long term</option>
-          </select>
+          <MultiSelectDropdown
+            label="Time Horizon"
+            options={timeHorizonOptions}
+            selectedValues={filters.time_horizon || []}
+            onChange={(values) => handleMultiSelectChange('time_horizon', values)}
+          />
         </div>
 
         <div className="filter-group">
-          <select
-            value={filters.scope}
-            onChange={(e) => handleChange('scope', e.target.value)}
-            className="filter-select"
-          >
-            <option value="">Scope</option>
-            <option value="local">Local</option>
-            <option value="regional">Regional</option>
-            <option value="national">National</option>
-            <option value="international">International</option>
-          </select>
+          <MultiSelectDropdown
+            label="Scope"
+            options={scopeOptions}
+            selectedValues={filters.scope || []}
+            onChange={(values) => handleMultiSelectChange('scope', values)}
+          />
+        </div>
+
+        <div className="filter-group">
+          <MultiSelectDropdown
+            label="Impact Label"
+            options={impactOptions}
+            selectedValues={filters.impact_label || []}
+            onChange={(values) => handleMultiSelectChange('impact_label', values)}
+          />
         </div>
       </div>
 
       <div className="filters-footer">
         <div className="selected-filters">
           <span className="selected-label">Selected:</span>
-          {filters.category && (
-            <span className="filter-tag">
-              {filters.category}
-              <button onClick={() => clearFilter('category')}>×</button>
+          {(filters.department_name || []).map(value => (
+            <span key={value} className="filter-tag">
+              {value}
+              <button onClick={() => handleMultiSelectChange('department_name', (filters.department_name || []).filter(v => v !== value))}>×</button>
             </span>
-          )}
-          {filters.sub_category && (
-            <span className="filter-tag">
-              {filters.sub_category}
-              <button onClick={() => clearFilter('sub_category')}>×</button>
+          ))}
+          {(filters.category || []).map(value => (
+            <span key={value} className="filter-tag">
+              {value}
+              <button onClick={() => handleMultiSelectChange('category', (filters.category || []).filter(v => v !== value))}>×</button>
             </span>
-          )}
-          {filters.department_name && (
-            <span className="filter-tag">
-              {filters.department_name}
-              <button onClick={() => clearFilter('department_name')}>×</button>
+          ))}
+          {(filters.sub_category || []).map(value => (
+            <span key={value} className="filter-tag">
+              {value}
+              <button onClick={() => handleMultiSelectChange('sub_category', (filters.sub_category || []).filter(v => v !== value))}>×</button>
             </span>
-          )}
-          {filters.time_horizon && (
-            <span className="filter-tag">
-              {filters.time_horizon}
-              <button onClick={() => clearFilter('time_horizon')}>×</button>
+          ))}
+          {(filters.time_horizon || []).map(value => (
+            <span key={value} className="filter-tag">
+              {value.replace(/_/g, ' ')}
+              <button onClick={() => handleMultiSelectChange('time_horizon', (filters.time_horizon || []).filter(v => v !== value))}>×</button>
             </span>
-          )}
-          {filters.scope && (
-            <span className="filter-tag">
-              {filters.scope}
-              <button onClick={() => clearFilter('scope')}>×</button>
+          ))}
+          {(filters.scope || []).map(value => (
+            <span key={value} className="filter-tag">
+              {value}
+              <button onClick={() => handleMultiSelectChange('scope', (filters.scope || []).filter(v => v !== value))}>×</button>
             </span>
-          )}
+          ))}
+          {(filters.impact_label || []).map(value => (
+            <span key={value} className="filter-tag">
+              {value}
+              <button onClick={() => handleMultiSelectChange('impact_label', (filters.impact_label || []).filter(v => v !== value))}>×</button>
+            </span>
+          ))}
         </div>
 
         <div className="view-toggle">

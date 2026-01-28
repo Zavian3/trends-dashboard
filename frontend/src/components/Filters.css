@@ -8,12 +8,45 @@
 
 .filters-header {
   margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .filters-label {
   font-weight: 600;
   color: var(--graphite);
   font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-count {
+  background: var(--vintage-lavender);
+  color: var(--white);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.clear-all-btn {
+  padding: 6px 14px;
+  background: var(--lavender);
+  color: var(--vintage-lavender);
+  border: 1px solid var(--border-lavender);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.clear-all-btn:hover {
+  background: var(--vintage-lavender);
+  color: var(--white);
+  border-color: var(--vintage-lavender);
 }
 
 .filters-row {
@@ -139,3 +172,165 @@
   border-color: var(--vintage-lavender);
   color: var(--vintage-lavender);
 }
+
+/* Multi-Select Dropdown Styles */
+.multi-select-dropdown {
+  position: relative;
+  width: 100%;
+}
+
+.multi-select-button {
+  width: 100%;
+  padding: 10px 14px;
+  border: 2px solid var(--lavender);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  background: var(--white);
+  color: var(--graphite);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  outline: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-align: left;
+}
+
+.multi-select-button:hover {
+  border-color: var(--vintage-lavender);
+}
+
+.multi-select-button:focus {
+  border-color: var(--vintage-lavender);
+  box-shadow: 0 0 0 3px rgba(32, 18, 110, 0.1);
+}
+
+.multi-select-button.has-selection {
+  border-color: var(--vintage-lavender);
+  background: linear-gradient(135deg, var(--lavender) 0%, var(--white) 100%);
+  font-weight: 600;
+}
+
+.multi-select-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdown-arrow {
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.dropdown-arrow.open {
+  transform: rotate(180deg);
+}
+
+.multi-select-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--white);
+  border: 2px solid var(--lavender);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 100;
+  animation: dropdownFadeIn 0.2s ease;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.multi-select-menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.multi-select-menu::-webkit-scrollbar-track {
+  background: var(--lavender);
+  border-radius: 4px;
+}
+
+.multi-select-menu::-webkit-scrollbar-thumb {
+  background: var(--vintage-lavender);
+  border-radius: 4px;
+}
+
+.multi-select-empty {
+  padding: 12px;
+  text-align: center;
+  color: var(--taupe-grey);
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+.multi-select-option {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  position: relative;
+}
+
+.multi-select-option:hover {
+  background: var(--lavender);
+}
+
+.multi-select-option input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.checkbox-custom {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border-lavender);
+  border-radius: 4px;
+  margin-right: 12px;
+  flex-shrink: 0;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.multi-select-option input[type="checkbox"]:checked ~ .checkbox-custom {
+  background: var(--vintage-lavender);
+  border-color: var(--vintage-lavender);
+}
+
+.multi-select-option input[type="checkbox"]:checked ~ .checkbox-custom::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 4px;
+  height: 8px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.option-label {
+  flex: 1;
+  font-size: 0.9rem;
+  color: var(--graphite);
+}
+
+.multi-select-option input[type="checkbox"]:checked ~ .option-label {
+  font-weight: 600;
+  color: var(--vintage-lavender);
+}
+

@@ -21,40 +21,113 @@ def debug_trends():
 @token_required
 def get_trends(current_user):
     try:
-        # Build query
+        # Get pagination parameters
+        page = int(request.args.get('page', 1))
+        limit = int(request.args.get('limit', 10))
+        offset = (page - 1) * limit
+        
+        # Build query for data
         query = db.table('trends').select('*')
+        
+        # Filter out trends with empty descriptions (only load complete trends)
+        # Check that at least one description field is not null/empty
+        query = query.or_('internal_teacher_description.neq.,internal_business_description.neq.,external_user_description.neq.')
+        count_query = db.table('trends').select('id', count='exact')
+        count_query = count_query.or_('internal_teacher_description.neq.,internal_business_description.neq.,external_user_description.neq.')
         
         # Non-admin users can only see confirmed trends
         if current_user['user_type'] != 'admin':
             query = query.eq('status', 'confirmed')
+            count_query = count_query.eq('status', 'confirmed')
         
         # Apply filters from query params
         filters = request.args
         
-        if filters.get('department_name'):
-            query = query.eq('department_name', filters.get('department_name'))
+        # Department/Sector filter - handle multiple values
+        department_names = filters.getlist('department_name')
+        if department_names:
+            if len(department_names) == 1:
+                query = query.eq('department_name', department_names[0])
+                count_query = count_query.eq('department_name', department_names[0])
+            else:
+                query = query.in_('department_name', department_names)
+                count_query = count_query.in_('department_name', department_names)
         
-        if filters.get('category'):
-            query = query.eq('category', filters.get('category'))
+        # Category filter - handle multiple values
+        categories = filters.getlist('category')
+        if categories:
+            if len(categories) == 1:
+                query = query.eq('category', categories[0])
+                count_query = count_query.eq('category', categories[0])
+            else:
+                query = query.in_('category', categories)
+                count_query = count_query.in_('category', categories)
         
-        if filters.get('sub_category'):
-            query = query.contains('sub_category', [filters.get('sub_category')])
+        # Subcategory filter - handle multiple values
+        sub_categories = filters.getlist('sub_category')
+        if sub_categories:
+            # sub_category is an array field, so we need to check if any of the selected values are in it
+            if len(sub_categories) == 1:
+                query = query.contains('sub_category', [sub_categories[0]])
+                count_query = count_query.contains('sub_category', [sub_categories[0]])
+            else:
+                # For multiple subcategories, we need to use OR logic
+                # Note: Supabase may require different syntax for array overlaps
+                query = query.overlaps('sub_category', sub_categories)
+                count_query = count_query.overlaps('sub_category', sub_categories)
         
-        if filters.get('time_horizon'):
-            query = query.eq('time_horizon', filters.get('time_horizon'))
+        # Time Horizon filter - handle multiple values
+        time_horizons = filters.getlist('time_horizon')
+        if time_horizons:
+            if len(time_horizons) == 1:
+                query = query.eq('time_horizon', time_horizons[0])
+                count_query = count_query.eq('time_horizon', time_horizons[0])
+            else:
+                query = query.in_('time_horizon', time_horizons)
+                count_query = count_query.in_('time_horizon', time_horizons)
         
-        if filters.get('scope'):
-            query = query.eq('scope', filters.get('scope'))
+        # Scope filter - handle multiple values
+        scopes = filters.getlist('scope')
+        if scopes:
+            if len(scopes) == 1:
+                query = query.eq('scope', scopes[0])
+                count_query = count_query.eq('scope', scopes[0])
+            else:
+                query = query.in_('scope', scopes)
+                count_query = count_query.in_('scope', scopes)
         
-        if filters.get('status'):
-            query = query.eq('status', filters.get('status'))
+        # Status filter - handle multiple values
+        statuses = filters.getlist('status')
+        if statuses:
+            if len(statuses) == 1:
+                query = query.eq('status', statuses[0])
+                count_query = count_query.eq('status', statuses[0])
+            else:
+                query = query.in_('status', statuses)
+                count_query = count_query.in_('status', statuses)
         
-        # Execute query
-        response = query.execute()
+        # Impact Label filter - handle multiple values
+        impact_labels = filters.getlist('impact_label')
+        if impact_labels:
+            if len(impact_labels) == 1:
+                query = query.eq('impact_label', impact_labels[0])
+                count_query = count_query.eq('impact_label', impact_labels[0])
+            else:
+                query = query.in_('impact_label', impact_labels)
+                count_query = count_query.in_('impact_label', impact_labels)
+        
+        # Apply pagination and ordering
+        query = query.order('created_at', desc=True).range(offset, offset + limit - 1)
+        
+        # Execute queries
+        count_response = count_query.execute()
+        data_response = query.execute()
+        
+        total_count = count_response.count if hasattr(count_response, 'count') else len(data_response.data)
         
         # Filter description based on user type
         trends = []
-        for trend in response.data:
+        for trend in data_response.data:
             filtered_trend = trend.copy()
             
             # Select appropriate description based on user type
@@ -80,7 +153,13 @@ def get_trends(current_user):
             
             trends.append(filtered_trend)
         
-        return jsonify({'trends': trends}), 200
+        return jsonify({
+            'trends': trends,
+            'total': total_count,
+            'page': page,
+            'limit': limit,
+            'total_pages': (total_count + limit - 1) // limit
+        }), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -234,20 +313,47 @@ def get_trend_stats(current_user):
     try:
         # Build query based on user type
         query = db.table('trends').select('*')
+        
+        # Filter out trends with empty descriptions (only count complete trends)
+        query = query.or_('internal_teacher_description.neq.,internal_business_description.neq.,external_user_description.neq.')
+        
         if current_user['user_type'] != 'admin':
             query = query.eq('status', 'confirmed')
         
         # Apply filters from query params
         filters = request.args
         
-        if filters.get('department_name'):
-            query = query.eq('department_name', filters.get('department_name'))
+        # Department/Sector filter - handle multiple values
+        department_names = filters.getlist('department_name')
+        if department_names:
+            if len(department_names) == 1:
+                query = query.eq('department_name', department_names[0])
+            else:
+                query = query.in_('department_name', department_names)
         
-        if filters.get('category'):
-            query = query.eq('category', filters.get('category'))
+        # Category filter - handle multiple values
+        categories = filters.getlist('category')
+        if categories:
+            if len(categories) == 1:
+                query = query.eq('category', categories[0])
+            else:
+                query = query.in_('category', categories)
         
-        if filters.get('sub_category'):
-            query = query.contains('sub_category', [filters.get('sub_category')])
+        # Subcategory filter - handle multiple values
+        sub_categories = filters.getlist('sub_category')
+        if sub_categories:
+            if len(sub_categories) == 1:
+                query = query.contains('sub_category', [sub_categories[0]])
+            else:
+                query = query.overlaps('sub_category', sub_categories)
+        
+        # Impact Label filter - handle multiple values
+        impact_labels = filters.getlist('impact_label')
+        if impact_labels:
+            if len(impact_labels) == 1:
+                query = query.eq('impact_label', impact_labels[0])
+            else:
+                query = query.in_('impact_label', impact_labels)
         
         response = query.execute()
         trends = response.data
