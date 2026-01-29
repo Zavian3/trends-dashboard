@@ -20,7 +20,7 @@ CORS(app, resources={
 })
 
 # Import routes
-from routes import auth, trends, departments, categories, subcategories, users
+from routes import auth, trends, departments, categories, subcategories, users, deduplication
 
 # Register blueprints
 app.register_blueprint(auth.bp)
@@ -29,6 +29,7 @@ app.register_blueprint(departments.bp)
 app.register_blueprint(categories.bp)
 app.register_blueprint(subcategories.bp)
 app.register_blueprint(users.bp)
+app.register_blueprint(deduplication.deduplication_bp)
 
 @app.route('/')
 def health_check():

@@ -312,7 +312,7 @@ const Dashboard = ({ showToast }) => {
 
   return (
     <div className={`dashboard ${user?.user_type !== 'admin' ? 'dashboard-no-header' : ''}`}>
-      <Header />
+      <Header onToast={showToast} />
       
       <div className="dashboard-content">
         <div className="dashboard-header">

@@ -187,3 +187,21 @@
   border-color: rgba(255, 255, 255, 0.5);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
+
+.nav-btn-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 130, 115, 0.2);
+  border-color: rgba(0, 130, 115, 0.4);
+}
+
+.nav-btn-action:hover {
+  background: rgba(0, 130, 115, 0.3);
+  border-color: rgba(0, 130, 115, 0.6);
+}
+
+.nav-btn-action svg {
+  width: 16px;
+  height: 16px;
+}

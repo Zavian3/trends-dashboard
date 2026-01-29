@@ -1,13 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import DeduplicationModal from './DeduplicationModal';
 import './Header.css';
 
-const Header = () => {
+const Header = ({ onToast }) => {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [dedupModalOpen, setDedupModalOpen] = useState(false);
   const dropdownRef = useRef(null);
 
   const getUserTypeLabel = (userType) => {
@@ -53,6 +55,21 @@ const Header = () => {
     logout();
   };
 
+  const handleDedupComplete = (status) => {
+    setDedupModalOpen(false);
+    
+    // Show toast notification
+    if (onToast) {
+      const message = status.duplicates_deleted > 0
+        ? `Deduplication complete! Removed ${status.duplicates_deleted} duplicate trend${status.duplicates_deleted !== 1 ? 's' : ''}.`
+        : 'Deduplication complete! No duplicates were found.';
+      onToast(message, 'success');
+    }
+    
+    // Reload the page to refresh trends
+    window.location.reload();
+  };
+
   return (
     <header className={`header ${!isAdmin ? 'header-minimal' : ''}`}>
       <div className="header-content">
@@ -77,6 +94,17 @@ const Header = () => {
                   onClick={() => navigate('/users')}
                 >
                   Users
+                </button>
+                <button
+                  className="nav-btn nav-btn-action"
+                  onClick={() => setDedupModalOpen(true)}
+                  title="Remove duplicate trends"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M9 11L12 14L22 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M21 12V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3H16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Deduplicate
                 </button>
               </nav>
             </>
@@ -115,6 +143,15 @@ const Header = () => {
           </div>
         )}
       </div>
+
+      {/* Deduplication Modal */}
+      {isAdmin && (
+        <DeduplicationModal
+          isOpen={dedupModalOpen}
+          onClose={() => setDedupModalOpen(false)}
+          onComplete={handleDedupComplete}
+        />
+      )}
     </header>
   );
 };
