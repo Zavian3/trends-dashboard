@@ -1,5 +1,5 @@
 """
-API routes for trend deduplication
+API routes for workplace development deduplication
 """
 
 from flask import Blueprint, jsonify, request
@@ -16,7 +16,7 @@ deduplication_bp = Blueprint('deduplication', __name__)
 dedup_state = {
     'is_running': False,
     'progress': 0,
-    'total_trends': 0,
+    'total_developments': 0,
     'duplicates_found': 0,
     'duplicates_deleted': 0,
     'current_stage': 'idle',
@@ -40,37 +40,39 @@ def load_model():
             model_cache['loading'] = False
     return model_cache['model']
 
-def create_trend_text(trend):
-    """Create a combined text representation of a trend for embedding."""
-    texts = [trend.get('title', '')]
+def create_development_text(development):
+    """Create a combined text representation of a workplace development for embedding."""
+    texts = [
+        development.get('title', ''),
+        development.get('description', ''),
+        development.get('workplace_example', ''),
+        development.get('work_impact', '')
+    ]
     
-    if trend.get('internal_teacher_description'):
-        texts.append(trend['internal_teacher_description'])
-    if trend.get('internal_business_description'):
-        texts.append(trend['internal_business_description'])
-    if trend.get('external_user_description'):
-        texts.append(trend['external_user_description'])
-    
-    return ' '.join(texts).strip()
+    return ' '.join(filter(None, texts)).strip()
 
-def get_completeness_score(trend):
-    """Calculate completeness score for a trend."""
+def get_completeness_score(development):
+    """Calculate completeness score for a workplace development."""
     score = 0
     
-    if trend.get('internal_teacher_description'): score += 3
-    if trend.get('internal_business_description'): score += 3
-    if trend.get('external_user_description'): score += 3
+    # Core fields
+    if development.get('description'): score += 3
+    if development.get('workplace_example'): score += 2
+    if development.get('work_impact'): score += 2
+    if development.get('short_term_change'): score += 2
+    if development.get('long_term_change'): score += 2
     
-    if trend.get('werkvloer_voorbeeld'): score += 2
-    if trend.get('gevolgen_werk'): score += 2
-    if trend.get('gevolgen_skills') and len(trend['gevolgen_skills']) > 0: score += 2
-    if trend.get('impact_score') is not None: score += 1
-    if trend.get('cijfers'): score += 1
-    if trend.get('bronnen'): score += 1
-    if trend.get('regionale_vertaling'): score += 1
-    if trend.get('ai_reasoning'): score += 1
+    # Impact and analysis
+    if development.get('impact_score') is not None: score += 2
+    if development.get('impact_breakdown'): score += 1
+    if development.get('brainport_impact'): score += 2
     
-    if trend.get('reviewed_at'): score += 3
+    # Sources and opportunities
+    if development.get('sources') and len(development.get('sources', [])) > 0: score += 2
+    if development.get('lll_opportunities') and len(development.get('lll_opportunities', [])) > 0: score += 1
+    
+    # Older developments are more "proven"
+    if development.get('created_at'): score += 1
     
     return score
 
@@ -85,20 +87,20 @@ def run_deduplication(similarity_threshold=0.90):
         dedup_state['error'] = None
         dedup_state['completed_at'] = None
         
-        # Fetch ALL trends (Supabase has a default limit of 1000, so we need pagination)
-        trends = []
+        # Fetch ALL workplace developments (Supabase has a default limit of 1000, so we need pagination)
+        developments = []
         page_size = 1000
         page = 0
         
         while True:
             offset = page * page_size
-            response = db.table('trends').select('*').range(offset, offset + page_size - 1).execute()
+            response = db.table('workplace_developments').select('*').range(offset, offset + page_size - 1).execute()
             
             if not response.data:
                 break
             
-            trends.extend(response.data)
-            dedup_state['total_trends'] = len(trends)
+            developments.extend(response.data)
+            dedup_state['total_developments'] = len(developments)
             dedup_state['progress'] = min(5 + (page * 2), 10)  # Progress 5-10%
             page += 1
             
@@ -106,11 +108,11 @@ def run_deduplication(similarity_threshold=0.90):
             if len(response.data) < page_size:
                 break
         
-        dedup_state['total_trends'] = len(trends)
+        dedup_state['total_developments'] = len(developments)
         dedup_state['progress'] = 10
-        print(f"Fetched {len(trends)} trends from database")
+        print(f"Fetched {len(developments)} workplace developments from database")
         
-        if len(trends) < 2:
+        if len(developments) < 2:
             dedup_state['is_running'] = False
             dedup_state['current_stage'] = 'completed'
             dedup_state['completed_at'] = time.time()
@@ -124,40 +126,40 @@ def run_deduplication(similarity_threshold=0.90):
         # Compute embeddings
         dedup_state['current_stage'] = 'computing_embeddings'
         dedup_state['progress'] = 30
-        trend_texts = [create_trend_text(trend) for trend in trends]
-        embeddings = model.encode(trend_texts, show_progress_bar=False)
+        development_texts = [create_development_text(dev) for dev in developments]
+        embeddings = model.encode(development_texts, show_progress_bar=False)
         dedup_state['progress'] = 60
         
         # Find duplicates using clustering approach
         dedup_state['current_stage'] = 'finding_duplicates'
         similarity_matrix = cosine_similarity(embeddings)
         
-        # Build clusters of similar trends
-        n = len(trends)
-        clusters = []  # Each cluster is a list of trend indices
-        assigned = set()  # Track which trends are already in a cluster
+        # Build clusters of similar developments
+        n = len(developments)
+        clusters = []  # Each cluster is a list of development indices
+        assigned = set()  # Track which developments are already in a cluster
         
         for i in range(n):
             if i in assigned:
                 continue
             
-            # Start a new cluster with trend i
+            # Start a new cluster with development i
             cluster = [i]
             assigned.add(i)
             
-            # Find all trends similar to any trend in this cluster
+            # Find all developments similar to any development in this cluster
             for j in range(i + 1, n):
                 if j in assigned:
                     continue
                 
-                # Check if j is similar to any trend in the current cluster
+                # Check if j is similar to any development in the current cluster
                 for cluster_idx in cluster:
                     if similarity_matrix[cluster_idx][j] >= similarity_threshold:
                         cluster.append(j)
                         assigned.add(j)
                         break
             
-            # Only keep clusters with 2+ trends (duplicates)
+            # Only keep clusters with 2+ developments (duplicates)
             if len(cluster) > 1:
                 clusters.append(cluster)
         
@@ -168,30 +170,37 @@ def run_deduplication(similarity_threshold=0.90):
         
         # Delete duplicates (keep the most complete one from each cluster)
         dedup_state['current_stage'] = 'deleting_duplicates'
-        deleted_trend_ids = set()
+        deleted_development_ids = set()
         deleted_count = 0
         
         for cluster in clusters:
-            # Get all trends in this cluster with their scores
-            cluster_trends = [(idx, trends[idx], get_completeness_score(trends[idx])) for idx in cluster]
+            # Get all developments in this cluster with their scores
+            cluster_developments = [(idx, developments[idx], get_completeness_score(developments[idx])) for idx in cluster]
             
             # Sort by completeness score (descending), then by created_at (ascending - older first)
-            cluster_trends.sort(key=lambda x: (-x[2], x[1].get('created_at', '')))
+            cluster_developments.sort(key=lambda x: (-x[2], x[1].get('created_at', '')))
             
             # Keep the first one (most complete/oldest), delete the rest
-            trends_to_keep = cluster_trends[0]
-            trends_to_delete = cluster_trends[1:]
+            developments_to_keep = cluster_developments[0]
+            developments_to_delete = cluster_developments[1:]
             
             # Delete all duplicates in this cluster
-            for idx, trend, score in trends_to_delete:
-                trend_id = trend['id']
-                if trend_id not in deleted_trend_ids:
+            for idx, dev, score in developments_to_delete:
+                development_id = dev['id']
+                development_title = dev['title']
+                
+                if development_id not in deleted_development_ids:
                     try:
-                        db.table('trends').delete().eq('id', trend_id).execute()
-                        deleted_trend_ids.add(trend_id)
+                        # Delete associated skills first (foreign key constraint)
+                        db.table('skills').delete().eq('workplace_development_title', development_title).execute()
+                        
+                        # Delete the development
+                        db.table('workplace_developments').delete().eq('id', development_id).execute()
+                        
+                        deleted_development_ids.add(development_id)
                         deleted_count += 1
                     except Exception as e:
-                        print(f"Error deleting trend {trend_id}: {e}")
+                        print(f"Error deleting workplace development {development_id}: {e}")
         
         dedup_state['duplicates_deleted'] = deleted_count
         dedup_state['progress'] = 100
@@ -230,7 +239,7 @@ def start_deduplication(current_user):
     
     # Reset state
     dedup_state['progress'] = 0
-    dedup_state['total_trends'] = 0
+    dedup_state['total_developments'] = 0
     dedup_state['duplicates_found'] = 0
     dedup_state['duplicates_deleted'] = 0
     dedup_state['current_stage'] = 'starting'
@@ -270,7 +279,7 @@ def reset_deduplication_status(current_user):
         }), 400
     
     dedup_state['progress'] = 0
-    dedup_state['total_trends'] = 0
+    dedup_state['total_developments'] = 0
     dedup_state['duplicates_found'] = 0
     dedup_state['duplicates_deleted'] = 0
     dedup_state['current_stage'] = 'idle'

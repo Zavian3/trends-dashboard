@@ -71,10 +71,9 @@ const Filters = ({
   filters, 
   onFilterChange, 
   departments, 
-  categories, 
-  subcategories,
-  viewMode,
-  onViewModeChange,
+  categories,
+  sortBy,
+  onSortChange,
   isAdmin 
 }) => {
   const handleMultiSelectChange = (field, values) => {
@@ -86,183 +85,210 @@ const Filters = ({
       status: [],
       department_name: [],
       category: [],
-      sub_category: [],
       time_horizon: [],
       scope: [],
-      impact_label: []
+      impact_label: [],
+      training_effort: []
     });
   };
 
   // Prepare options for dropdowns
   const departmentOptions = departments.map(dept => ({ value: dept.name, label: dept.name }));
   const categoryOptions = categories.map(cat => ({ value: cat.category_name, label: cat.category_name }));
-  const subcategoryOptions = subcategories.map(sub => ({ value: sub.sub_category_name, label: sub.sub_category_name }));
   
+  const statusOptions = isAdmin ? [
+    { value: 'draft', label: 'Draft' },
+    { value: 'active', label: 'Active' },
+    { value: 'archived', label: 'Archived' }
+  ] : [];
+
   const timeHorizonOptions = [
-    { value: 'short_term', label: 'Short term' },
-    { value: 'medium_term', label: 'Medium term' },
-    { value: 'long_term', label: 'Long term' }
+    { value: 'short_term', label: 'Short Term' },
+    { value: 'medium_term', label: 'Medium Term' },
+    { value: 'long_term', label: 'Long Term' }
   ];
 
   const scopeOptions = [
-    { value: 'local', label: 'Local' },
     { value: 'regional', label: 'Regional' },
-    { value: 'national', label: 'National' },
-    { value: 'international', label: 'International' }
+    { value: 'national', label: 'National' }
   ];
 
-  const impactOptions = [
+  const impactLabelOptions = [
     { value: 'Very High', label: 'Very High' },
     { value: 'High', label: 'High' },
     { value: 'Medium', label: 'Medium' },
     { value: 'Low', label: 'Low' }
   ];
 
-  const statusOptions = [
-    { value: 'draft', label: 'Draft (Pending Approval)' },
-    { value: 'confirmed', label: 'Confirmed' }
+  const trainingEffortOptions = [
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' }
   ];
 
-  // Calculate total active filters
-  const totalActiveFilters = Object.values(filters).reduce((sum, filter) => {
-    return sum + (Array.isArray(filter) ? filter.length : (filter ? 1 : 0));
-  }, 0);
+  const sortOptions = [
+    { value: 'priority', label: 'Priority' },
+    { value: 'impact', label: 'Impact' },
+    { value: 'effort', label: 'Effort' }
+  ];
+
+  // Check if any filters are active
+  const hasActiveFilters = Object.values(filters).some(value => 
+    Array.isArray(value) && value.length > 0
+  );
+
+  // Render active filter tags
+  const renderFilterTags = () => {
+    const tags = [];
+    
+    const allOptions = {
+      department_name: departmentOptions,
+      category: categoryOptions,
+      time_horizon: timeHorizonOptions,
+      scope: scopeOptions,
+      impact_label: impactLabelOptions,
+      training_effort: trainingEffortOptions,
+      ...(isAdmin && { status: statusOptions })
+    };
+
+    Object.entries(filters).forEach(([key, values]) => {
+      if (Array.isArray(values) && values.length > 0) {
+        values.forEach(value => {
+          const options = allOptions[key] || [];
+          const option = options.find(opt => opt.value === value);
+          if (option) {
+            tags.push({
+              key,
+              value,
+              label: option.label,
+              field: key.replace('_', ' ')
+            });
+          }
+        });
+      }
+    });
+
+    return tags;
+  };
+
+  const removeFilter = (key, value) => {
+    const newValues = (filters[key] || []).filter(v => v !== value);
+    onFilterChange({ [key]: newValues });
+  };
+
+  const filterTags = renderFilterTags();
 
   return (
     <div className="filters-container">
-      <div className="filters-header">
-        <span className="filters-label">
-          Filters {totalActiveFilters > 0 && <span className="filter-count">({totalActiveFilters})</span>}
-        </span>
-        {totalActiveFilters > 0 && (
-          <button className="clear-all-btn" onClick={clearAllFilters}>Clear All</button>
-        )}
-      </div>
-
       <div className="filters-row">
-        {isAdmin && (
-          <div className="filter-group">
-            <MultiSelectDropdown
-              label="Status"
-              options={statusOptions}
-              selectedValues={filters.status || []}
-              onChange={(values) => handleMultiSelectChange('status', values)}
-            />
-          </div>
-        )}
-
-        <div className="filter-group">
+        <div className="filters-group">
+          {/* Sector Filter (First) */}
           <MultiSelectDropdown
             label="Sector"
             options={departmentOptions}
             selectedValues={filters.department_name || []}
             onChange={(values) => handleMultiSelectChange('department_name', values)}
           />
-        </div>
 
-        <div className="filter-group">
+          {/* Category Filter */}
           <MultiSelectDropdown
             label="Category"
             options={categoryOptions}
             selectedValues={filters.category || []}
             onChange={(values) => handleMultiSelectChange('category', values)}
           />
-        </div>
 
-        <div className="filter-group">
+          {/* Impact Label Filter */}
           <MultiSelectDropdown
-            label="Subcategory"
-            options={subcategoryOptions}
-            selectedValues={filters.sub_category || []}
-            onChange={(values) => handleMultiSelectChange('sub_category', values)}
+            label="Impact"
+            options={impactLabelOptions}
+            selectedValues={filters.impact_label || []}
+            onChange={(values) => handleMultiSelectChange('impact_label', values)}
           />
-        </div>
 
-        <div className="filter-group">
+          {/* Training Effort Filter */}
+          <MultiSelectDropdown
+            label="Training Effort"
+            options={trainingEffortOptions}
+            selectedValues={filters.training_effort || []}
+            onChange={(values) => handleMultiSelectChange('training_effort', values)}
+          />
+
+          {/* Time Horizon Filter */}
           <MultiSelectDropdown
             label="Time Horizon"
             options={timeHorizonOptions}
             selectedValues={filters.time_horizon || []}
             onChange={(values) => handleMultiSelectChange('time_horizon', values)}
           />
-        </div>
 
-        <div className="filter-group">
+          {/* Scope Filter */}
           <MultiSelectDropdown
             label="Scope"
             options={scopeOptions}
             selectedValues={filters.scope || []}
             onChange={(values) => handleMultiSelectChange('scope', values)}
           />
+
+          {/* Status Filter (Admin Only) */}
+          {isAdmin && (
+            <MultiSelectDropdown
+              label="Status"
+              options={statusOptions}
+              selectedValues={filters.status || []}
+              onChange={(values) => handleMultiSelectChange('status', values)}
+            />
+          )}
+
+          {/* Sort Dropdown - Now part of the grid */}
+          <div className="filter-group">
+            <select
+              id="sort-select"
+              value={sortBy || 'priority'}
+              onChange={(e) => onSortChange && onSortChange(e.target.value)}
+              className="multi-select-button sort-select-grid"
+            >
+              <option value="priority">Sort by: Priority</option>
+              <option value="impact">Sort by: Impact</option>
+              <option value="effort">Sort by: Effort</option>
+            </select>
+          </div>
         </div>
 
-        <div className="filter-group">
-          <MultiSelectDropdown
-            label="Impact Label"
-            options={impactOptions}
-            selectedValues={filters.impact_label || []}
-            onChange={(values) => handleMultiSelectChange('impact_label', values)}
-          />
-        </div>
+        {/* Clear All Button - Below the grid */}
+        {hasActiveFilters && (
+          <div className="filters-actions">
+            <button 
+              className="clear-all-button"
+              onClick={clearAllFilters}
+              type="button"
+            >
+              Clear All Filters
+            </button>
+          </div>
+        )}
       </div>
 
-      <div className="filters-footer">
-        <div className="selected-filters">
-          <span className="selected-label">Selected:</span>
-          {(filters.department_name || []).map(value => (
-            <span key={value} className="filter-tag">
-              {value}
-              <button onClick={() => handleMultiSelectChange('department_name', (filters.department_name || []).filter(v => v !== value))}>×</button>
-            </span>
-          ))}
-          {(filters.category || []).map(value => (
-            <span key={value} className="filter-tag">
-              {value}
-              <button onClick={() => handleMultiSelectChange('category', (filters.category || []).filter(v => v !== value))}>×</button>
-            </span>
-          ))}
-          {(filters.sub_category || []).map(value => (
-            <span key={value} className="filter-tag">
-              {value}
-              <button onClick={() => handleMultiSelectChange('sub_category', (filters.sub_category || []).filter(v => v !== value))}>×</button>
-            </span>
-          ))}
-          {(filters.time_horizon || []).map(value => (
-            <span key={value} className="filter-tag">
-              {value.replace(/_/g, ' ')}
-              <button onClick={() => handleMultiSelectChange('time_horizon', (filters.time_horizon || []).filter(v => v !== value))}>×</button>
-            </span>
-          ))}
-          {(filters.scope || []).map(value => (
-            <span key={value} className="filter-tag">
-              {value}
-              <button onClick={() => handleMultiSelectChange('scope', (filters.scope || []).filter(v => v !== value))}>×</button>
-            </span>
-          ))}
-          {(filters.impact_label || []).map(value => (
-            <span key={value} className="filter-tag">
-              {value}
-              <button onClick={() => handleMultiSelectChange('impact_label', (filters.impact_label || []).filter(v => v !== value))}>×</button>
-            </span>
+      {/* Filter Tags */}
+      {filterTags.length > 0 && (
+        <div className="filter-tags">
+          {filterTags.map((tag, index) => (
+            <div key={`${tag.key}-${tag.value}-${index}`} className="filter-tag">
+              <span className="filter-tag-text">
+                <span className="filter-tag-field">{tag.field}:</span> {tag.label}
+              </span>
+              <button
+                className="filter-tag-remove"
+                onClick={() => removeFilter(tag.key, tag.value)}
+                type="button"
+                aria-label={`Remove ${tag.label} filter`}
+              >
+                ×
+              </button>
+            </div>
           ))}
         </div>
-
-        <div className="view-toggle">
-          <span className="view-label">View:</span>
-          <button
-            className={`view-button ${viewMode === 'list' ? 'active' : ''}`}
-            onClick={() => onViewModeChange('list')}
-          >
-            List
-          </button>
-          <button
-            className={`view-button ${viewMode === 'grouped' ? 'active' : ''}`}
-            onClick={() => onViewModeChange('grouped')}
-          >
-            Grouped
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   );
 };

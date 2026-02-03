@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import axios from 'axios';
+import { getDepartments, getCategories, bulkUpdateWorkplaceDevelopmentStatus, getWorkplaceDevelopments, getSkills } from '../utils/api';
 import Header from '../components/Header';
 import Filters from '../components/Filters';
-import StatsCards from '../components/StatsCards';
-import TrendsTable from '../components/TrendsTable';
-import TrendDetailPanel from '../components/TrendDetailPanel';
+import DashboardCards from '../components/DashboardCards';
+import TrendsTablePanel from '../components/TrendsTablePanel';
+import WorkplaceDevelopmentDetail from '../components/WorkplaceDevelopmentDetail';
 import Loader from '../components/Loader';
 import './Dashboard.css';
 
@@ -80,313 +80,390 @@ const UserAvatar = ({ user, logout }) => {
 };
 
 const Dashboard = ({ showToast }) => {
-  const { user, API_URL, logout } = useAuth();
-  const [trends, setTrends] = useState([]);
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const { user, logout } = useAuth();
   const [initialLoading, setInitialLoading] = useState(true);
+  const [selectedDevelopment, setSelectedDevelopment] = useState(null);
   const [selectedTrend, setSelectedTrend] = useState(null);
+  const [selectedSkill, setSelectedSkill] = useState(null);
+  const [skillDevelopments, setSkillDevelopments] = useState([]);
+  const [selectedDevelopments, setSelectedDevelopments] = useState([]);
   const [filters, setFilters] = useState({
     department_name: [],
     category: [],
-    sub_category: [],
     time_horizon: [],
     scope: [],
     status: [],
-    impact_label: []
+    impact_label: [],
+    training_effort: []
   });
-  const [viewMode, setViewMode] = useState('list'); // 'list' or 'grouped'
-  const [selectedTrends, setSelectedTrends] = useState([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [totalTrends, setTotalTrends] = useState(0);
-  
+  const [sortBy, setSortBy] = useState('priority');
   const [departments, setDepartments] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [subcategories, setSubcategories] = useState([]);
 
   useEffect(() => {
-    const initData = async () => {
-      await fetchInitialData();
-      await Promise.all([fetchTrends(), fetchStats()]);
-      setInitialLoading(false);
+    const fetchInitialData = async () => {
+      try {
+        setInitialLoading(true);
+        
+        // Fetch departments and categories in parallel
+        const [deptData, catData] = await Promise.all([
+          getDepartments({ active_only: true }),
+          getCategories()
+        ]);
+        
+        setDepartments(deptData.departments || []);
+        setCategories(catData.categories || []);
+      } catch (error) {
+        console.error('Error fetching initial data:', error);
+        showToast && showToast('Failed to load data', 'error');
+      } finally {
+        setInitialLoading(false);
+      }
     };
-    initData();
+
+    fetchInitialData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Lock body scroll when Trend panel is open
   useEffect(() => {
-    if (!initialLoading) {
-      fetchTrends();
-      fetchStats();
+    if (selectedTrend) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, currentPage, itemsPerPage]);
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [selectedTrend]);
 
-  const fetchInitialData = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const [depsRes, catsRes, subcatsRes] = await Promise.all([
-        axios.get(`${API_URL}/api/departments?active_only=true`, { headers }),
-        axios.get(`${API_URL}/api/categories`, { headers }),
-        axios.get(`${API_URL}/api/subcategories`, { headers })
-      ]);
-
-      setDepartments(depsRes.data.departments);
-      setCategories(catsRes.data.categories);
-      setSubcategories(subcatsRes.data.subcategories);
-    } catch (error) {
-      console.error('Error fetching initial data:', error);
+  // Lock body scroll when Skills panel is open
+  useEffect(() => {
+    if (selectedSkill) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
     }
-  };
-
-  const fetchTrends = async () => {
-    try {
-      // Only show loading indicator if not initial loading
-      if (!initialLoading) {
-        setLoading(true);
-      }
-      const token = localStorage.getItem('token');
-      const params = new URLSearchParams();
-      
-      // Add pagination params
-      params.append('page', currentPage);
-      params.append('limit', itemsPerPage);
-      
-      // Add filter params - handle arrays for multi-select
-      Object.keys(filters).forEach(key => {
-        const value = filters[key];
-        if (Array.isArray(value) && value.length > 0) {
-          // For array filters, append each value
-          value.forEach(v => params.append(key, v));
-        } else if (value && !Array.isArray(value)) {
-          // For non-array filters (backwards compatibility)
-          params.append(key, value);
-        }
-      });
-
-      const response = await axios.get(`${API_URL}/api/trends?${params}`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-
-      setTrends(response.data.trends);
-      setTotalTrends(response.data.total || response.data.trends.length);
-    } catch (error) {
-      console.error('Error fetching trends:', error);
-    } finally {
-      if (!initialLoading) {
-        setLoading(false);
-      }
-    }
-  };
-
-  const fetchStats = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const params = new URLSearchParams();
-      
-      // Handle array-based filters for multi-select
-      Object.keys(filters).forEach(key => {
-        const value = filters[key];
-        if (Array.isArray(value) && value.length > 0) {
-          value.forEach(v => params.append(key, v));
-        } else if (value && !Array.isArray(value)) {
-          params.append(key, value);
-        }
-      });
-
-      const response = await axios.get(`${API_URL}/api/trends/stats?${params}`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-
-      setStats(response.data.stats);
-    } catch (error) {
-      console.error('Error fetching stats:', error);
-    }
-  };
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [selectedSkill]);
 
   const handleFilterChange = (newFilters) => {
-    setFilters({ ...filters, ...newFilters });
-    setCurrentPage(1); // Reset to first page when filters change
+    setFilters(prev => ({ ...prev, ...newFilters }));
   };
 
+  const handleDevelopmentClick = (development) => {
+    setSelectedDevelopment(development);
+  };
 
   const handleTrendClick = (trend) => {
     setSelectedTrend(trend);
   };
 
-  const handleCloseTrendDetail = () => {
-    setSelectedTrend(null);
-  };
-
-  const handleTrendSelect = (trendId) => {
-    setSelectedTrends(prev => {
-      if (prev.includes(trendId)) {
-        return prev.filter(id => id !== trendId);
-      } else {
-        return [...prev, trendId];
+  const handleSkillClick = async (skill) => {
+    setSelectedSkill(skill);
+    // Fetch all skills records to find workplace developments that use this skill
+    try {
+      // Fetch all skills from the skills table
+      const skillsResponse = await getSkills();
+      
+      // Filter skills by the skill name (case-insensitive match)
+      const matchingSkills = skillsResponse.skills.filter(s => 
+        s.skill_name.toLowerCase() === skill.skill_name.toLowerCase()
+      );
+      
+      // Get unique workplace development titles
+      const developmentTitles = [...new Set(matchingSkills.map(s => s.workplace_development_title))];
+      
+      if (developmentTitles.length === 0) {
+        setSkillDevelopments([]);
+        return;
       }
-    });
+      
+      // Fetch all workplace developments
+      const devsResponse = await getWorkplaceDevelopments({
+        limit: 1000
+      });
+      
+      // Filter to only include developments that match the titles from skills table
+      const filtered = devsResponse.workplace_developments.filter(dev => 
+        developmentTitles.includes(dev.title)
+      );
+      
+      setSkillDevelopments(filtered);
+    } catch (error) {
+      console.error('Error fetching skill developments:', error);
+      setSkillDevelopments([]);
+    }
   };
 
   const handleBulkApprove = async () => {
+    if (selectedDevelopments.length === 0) return;
+    
     try {
-      const token = localStorage.getItem('token');
-      console.log('Approving trends:', selectedTrends);
-      
-      const response = await axios.put(
-        `${API_URL}/api/trends/bulk-approve`,
-        { trend_ids: selectedTrends },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
-      );
-      
-      console.log('Approve response:', response.data);
-      showToast(`Successfully approved ${selectedTrends.length} trend(s)!`, 'success');
-      setSelectedTrends([]);
-      
-      // Refresh data to show updated status
-      await fetchTrends();
-      await fetchStats();
+      await bulkUpdateWorkplaceDevelopmentStatus(selectedDevelopments, 'active');
+      showToast && showToast(`${selectedDevelopments.length} developments approved!`, 'success');
+      setSelectedDevelopments([]);
+      // Trigger refresh by changing a filter state
+      setFilters(prev => ({...prev}));
     } catch (error) {
-      console.error('Error approving trends:', error);
-      console.error('Error response:', error.response?.data);
-      showToast(`Failed to approve trends: ${error.response?.data?.error || error.message}`, 'error');
+      console.error('Error approving developments:', error);
+      showToast && showToast('Failed to approve developments', 'error');
     }
   };
 
-  const handleBulkDisapprove = async () => {
-    if (!window.confirm(`Are you sure you want to delete ${selectedTrends.length} trend(s)?`)) {
+  const handleBulkArchive = async () => {
+    if (selectedDevelopments.length === 0) return;
+    
+    if (!window.confirm(`Are you sure you want to archive ${selectedDevelopments.length} developments?`)) {
       return;
     }
-
+    
     try {
-      const token = localStorage.getItem('token');
-      console.log('Disapproving trends:', selectedTrends);
-      
-      await axios.delete(
-        `${API_URL}/api/trends/bulk-disapprove`,
-        {
-          data: { trend_ids: selectedTrends },
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
-      );
-      
-      showToast(`Successfully deleted ${selectedTrends.length} trend(s)!`, 'success');
-      setSelectedTrends([]);
-      
-      // Refresh data to show updated list
-      await fetchTrends();
-      await fetchStats();
+      await bulkUpdateWorkplaceDevelopmentStatus(selectedDevelopments, 'archived');
+      showToast && showToast(`${selectedDevelopments.length} developments archived!`, 'success');
+      setSelectedDevelopments([]);
+      // Trigger refresh
+      setFilters(prev => ({...prev}));
     } catch (error) {
-      console.error('Error disapproving trends:', error);
-      console.error('Error response:', error.response?.data);
-      showToast(`Failed to disapprove trends: ${error.response?.data?.error || error.message}`, 'error');
+      console.error('Error archiving developments:', error);
+      showToast && showToast('Failed to archive developments', 'error');
     }
-  };
-
-  const handlePageChange = (pageNumber) => {
-    setCurrentPage(pageNumber);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleItemsPerPageChange = (newItemsPerPage) => {
-    setItemsPerPage(newItemsPerPage);
-    setCurrentPage(1); // Reset to first page when changing items per page
   };
 
   if (initialLoading) {
-    return <Loader message="Preparing your plan" subtitle="Setting up your dashboard and analyzing trends..." />;
+    return <Loader />;
   }
 
+  const isAdmin = user?.user_type === 'admin';
+
   return (
-    <div className={`dashboard ${user?.user_type !== 'admin' ? 'dashboard-no-header' : ''}`}>
-      <Header onToast={showToast} />
+    <div className="dashboard">
+      <Header />
       
-      <div className="dashboard-content">
-        <div className="dashboard-header">
-          <div className="dashboard-title-section">
-            <div>
-              <h1>Trend and skill dashboard</h1>
-              <p className="dashboard-subtitle">
-                This is a description of what people can expect and what people should do etc.
-              </p>
-            </div>
-            {user?.user_type !== 'admin' && (
+      <div className={`dashboard-container ${!isAdmin ? 'minimal-header' : ''}`}>
+        <div className="dashboard-header-section">
+          <div className="dashboard-title-row">
+            <h1 className="dashboard-title">Workplace Developments Dashboard</h1>
+            {!isAdmin && (
               <UserAvatar user={user} logout={logout} />
             )}
           </div>
         </div>
 
+        {/* Filters FIRST - Above everything */}
         <Filters
           filters={filters}
           onFilterChange={handleFilterChange}
           departments={departments}
           categories={categories}
-          subcategories={subcategories}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-          isAdmin={user?.user_type === 'admin'}
+          sortBy={sortBy}
+          onSortChange={setSortBy}
+          isAdmin={isAdmin}
         />
 
-        {stats && <StatsCards stats={stats} />}
+        {/* Dashboard Cards */}
+        <DashboardCards
+          filters={filters}
+          onTrendClick={handleTrendClick}
+          onDevelopmentClick={handleDevelopmentClick}
+          onSkillClick={handleSkillClick}
+        />
 
-        {user?.user_type === 'admin' && selectedTrends.length > 0 && (
+        {/* Bulk Actions (when items selected) */}
+        {isAdmin && selectedDevelopments.length > 0 && (
           <div className="bulk-actions">
-            <span className="selected-count">{selectedTrends.length} selected</span>
-            <button className="btn-approve" onClick={handleBulkApprove}>
-              Approve
+            <span className="selected-count">
+              {selectedDevelopments.length} selected
+            </span>
+            <button className="btn btn-approve" onClick={handleBulkApprove}>
+              ✓ Approve
             </button>
-            <button className="btn-disapprove" onClick={handleBulkDisapprove}>
-              Disapprove
+            <button className="btn btn-archive" onClick={handleBulkArchive}>
+              📦 Archive
+            </button>
+            <button 
+              className="btn btn-clear" 
+              onClick={() => setSelectedDevelopments([])}
+            >
+              Clear Selection
             </button>
           </div>
         )}
 
-        <TrendsTable
-          trends={trends}
-          loading={loading}
-          onTrendClick={handleTrendClick}
-          viewMode={viewMode}
-          isAdmin={user?.user_type === 'admin'}
-          selectedTrends={selectedTrends}
-          onTrendSelect={handleTrendSelect}
-          currentPage={currentPage}
-          itemsPerPage={itemsPerPage}
-          totalItems={totalTrends}
-          onPageChange={handlePageChange}
-          onItemsPerPageChange={handleItemsPerPageChange}
+        {/* Trends Table with Slide-in Panels */}
+        <TrendsTablePanel
+          filters={filters}
+          sortBy={sortBy}
+          isAdmin={isAdmin}
         />
-      </div>
 
-      {selectedTrend && (
-        <TrendDetailPanel
-          trend={selectedTrend}
-          onClose={handleCloseTrendDetail}
-          isAdmin={user?.user_type === 'admin'}
-          onApprove={async () => {
-            await fetchTrends();
-            await fetchStats();
-            showToast('Trend approved successfully!', 'success');
-          }}
-          onDisapprove={async () => {
-            await fetchTrends();
-            await fetchStats();
-            showToast('Trend deleted successfully!', 'success');
-          }}
-        />
-      )}
+        {/* Development Detail Panel (from cards) */}
+        {selectedDevelopment && (
+          <WorkplaceDevelopmentDetail
+            developmentId={selectedDevelopment.id}
+            onClose={() => setSelectedDevelopment(null)}
+            onDevelopmentClick={(dev) => {
+              setSelectedDevelopment(null);
+              setSelectedDevelopment(dev);
+            }}
+          />
+        )}
+
+        {/* Trend Detail Panel (from cards) */}
+        {selectedTrend && (
+          <div 
+            className="side-panel-overlay" 
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setSelectedTrend(null);
+              }
+            }}
+          >
+            <div className="side-panel half-screen">
+              <div className="panel-header">
+                <div>
+                  <h2>{selectedTrend.title}</h2>
+                  <p className="panel-subtitle">{selectedTrend.department_name}</p>
+                </div>
+                <button className="panel-close" onClick={() => setSelectedTrend(null)}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              </div>
+              <div className="panel-content">
+                <div className="info-section">
+                  <h3>Overview</h3>
+                  <div className="info-grid">
+                    {selectedTrend.priority_score && (
+                      <div className="info-item">
+                        <span className="info-label">Priority Score</span>
+                        <span className="info-value">{selectedTrend.priority_score.toFixed(1)}</span>
+                      </div>
+                    )}
+                    {selectedTrend.momentum_score && (
+                      <div className="info-item">
+                        <span className="info-label">Momentum Score</span>
+                        <span className="info-value">{selectedTrend.momentum_score.toFixed(1)}</span>
+                      </div>
+                    )}
+                    {selectedTrend.coverage_count !== undefined && (
+                      <div className="info-item">
+                        <span className="info-label">Workplace Developments</span>
+                        <span className="info-value">{selectedTrend.coverage_count}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {selectedTrend.description && (
+                  <div className="info-section">
+                    <h3>Description</h3>
+                    <p>{selectedTrend.description}</p>
+                  </div>
+                )}
+
+                {selectedTrend.department_name && (
+                  <div className="info-section">
+                    <h3>Sector</h3>
+                    <span className="badge badge-sector">{selectedTrend.department_name}</span>
+                  </div>
+                )}
+
+                {selectedTrend.status && (
+                  <div className="info-section">
+                    <h3>Status</h3>
+                    <span className={`badge badge-status status-${selectedTrend.status}`}>
+                      {selectedTrend.status}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Skills Detail Panel (from cards) */}
+        {selectedSkill && (
+          <div 
+            className="side-panel-overlay" 
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setSelectedSkill(null);
+              }
+            }}
+          >
+            <div className="side-panel half-screen">
+              <div className="panel-header">
+                <div>
+                  <h2>{selectedSkill.skill_name}</h2>
+                  <p className="panel-subtitle">
+                    <span className={`badge badge-skill-type skill-${selectedSkill.skill_type.replace('_', '-')}`}>
+                      {selectedSkill.skill_type.replace('_', ' ')}
+                    </span>
+                    {selectedSkill.occurrence_count && (
+                      <span className="meta-text" style={{ marginLeft: '0.5rem' }}>
+                        {selectedSkill.occurrence_count} occurrences
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <button className="panel-close" onClick={() => setSelectedSkill(null)}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              </div>
+              <div className="panel-content">
+                <div className="info-section">
+                  <h3>Workplace Developments Mentioning This Skill</h3>
+                  {skillDevelopments.length === 0 ? (
+                    <p className="empty-message">No workplace developments found for this skill.</p>
+                  ) : (
+                    <div className="developments-list">
+                      {skillDevelopments.map((dev, index) => (
+                        <div 
+                          key={dev.id} 
+                          className="development-card clickable"
+                          onClick={() => {
+                            setSelectedSkill(null);
+                            setSelectedDevelopment(dev);
+                          }}
+                        >
+                          <div className="development-number">{index + 1}</div>
+                          <div className="development-content">
+                            <h4>{dev.title}</h4>
+                            <div className="development-meta">
+                              {dev.impact_label && (
+                                <span className={`badge badge-impact impact-${dev.impact_label.toLowerCase().replace(' ', '-')}`}>
+                                  {dev.impact_label}
+                                </span>
+                              )}
+                              {dev.training_effort && (
+                                <span className={`badge badge-effort effort-${dev.training_effort}`}>
+                                  {dev.training_effort} effort
+                                </span>
+                              )}
+                              {dev.scope && (
+                                <span className={`badge badge-scope scope-${dev.scope}`}>
+                                  {dev.scope}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="development-arrow">→</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
