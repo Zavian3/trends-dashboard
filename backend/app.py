@@ -20,7 +20,16 @@ CORS(app, resources={
 })
 
 # Import routes
-from routes import auth, trends, departments, categories, users, deduplication, kernpunten, workplace_developments, skills, cards
+from routes import auth, trends, departments, categories, users, kernpunten, workplace_developments, skills, cards
+
+# Try to import deduplication (requires ML libraries - local only)
+deduplication_available = False
+try:
+    from routes import deduplication
+    deduplication_available = True
+    print("✅ Deduplication feature loaded (ML libraries available)")
+except ImportError as e:
+    print(f"⚠️  Deduplication feature disabled (ML libraries not installed): {e}")
 
 # Register blueprints
 app.register_blueprint(auth.bp)
@@ -28,7 +37,8 @@ app.register_blueprint(trends.bp)
 app.register_blueprint(departments.bp)
 app.register_blueprint(categories.bp)
 app.register_blueprint(users.bp)
-app.register_blueprint(deduplication.deduplication_bp)
+if deduplication_available:
+    app.register_blueprint(deduplication.deduplication_bp)
 app.register_blueprint(kernpunten.bp)
 app.register_blueprint(workplace_developments.bp)
 app.register_blueprint(skills.bp)

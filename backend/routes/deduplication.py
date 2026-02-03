@@ -1,14 +1,16 @@
 """
 API routes for workplace development deduplication
+Uses lightweight TF-IDF for serverless compatibility
 """
 
 from flask import Blueprint, jsonify, request
 from database import db
 from utils.auth_middleware import token_required, admin_required
-from sentence_transformers import SentenceTransformer
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import threading
 import time
+import re
 
 deduplication_bp = Blueprint('deduplication', __name__)
 
@@ -24,21 +26,17 @@ dedup_state = {
     'completed_at': None
 }
 
-# Model cache
-model_cache = {
-    'model': None,
-    'loading': False
-}
-
-def load_model():
-    """Load the sentence transformer model if not already loaded."""
-    if model_cache['model'] is None and not model_cache['loading']:
-        model_cache['loading'] = True
-        try:
-            model_cache['model'] = SentenceTransformer('paraphrase-multilingual-mpnet-base-v2')
-        finally:
-            model_cache['loading'] = False
-    return model_cache['model']
+def preprocess_text(text):
+    """Clean and normalize text for better similarity detection."""
+    if not text:
+        return ""
+    # Lowercase
+    text = text.lower()
+    # Remove extra whitespace
+    text = re.sub(r'\s+', ' ', text)
+    # Remove special characters but keep spaces
+    text = re.sub(r'[^\w\s]', '', text)
+    return text.strip()
 
 def create_development_text(development):
     """Create a combined text representation of a workplace development for embedding."""
@@ -118,21 +116,33 @@ def run_deduplication(similarity_threshold=0.90):
             dedup_state['completed_at'] = time.time()
             return
         
-        # Load model
-        dedup_state['current_stage'] = 'loading_model'
+        # Prepare texts
+        dedup_state['current_stage'] = 'preprocessing'
         dedup_state['progress'] = 20
-        model = load_model()
-        
-        # Compute embeddings
-        dedup_state['current_stage'] = 'computing_embeddings'
-        dedup_state['progress'] = 30
         development_texts = [create_development_text(dev) for dev in developments]
-        embeddings = model.encode(development_texts, show_progress_bar=False)
+        
+        # Preprocess texts
+        processed_texts = [preprocess_text(text) for text in development_texts]
+        dedup_state['progress'] = 30
+        
+        # Create TF-IDF vectors (lightweight, no model download needed)
+        dedup_state['current_stage'] = 'computing_embeddings'
+        vectorizer = TfidfVectorizer(
+            max_features=500,  # Limit features for memory efficiency
+            ngram_range=(1, 2),  # Use unigrams and bigrams
+            min_df=1,
+            max_df=0.8,
+            sublinear_tf=True
+        )
+        tfidf_matrix = vectorizer.fit_transform(processed_texts)
+        dedup_state['progress'] = 50
+        
+        # Compute similarity
+        similarity_matrix = cosine_similarity(tfidf_matrix)
         dedup_state['progress'] = 60
         
         # Find duplicates using clustering approach
         dedup_state['current_stage'] = 'finding_duplicates'
-        similarity_matrix = cosine_similarity(embeddings)
         
         # Build clusters of similar developments
         n = len(developments)
