@@ -109,13 +109,13 @@
 }
 
 .badge-impact.impact-very-high {
-  background: #fee2e2;
-  color: #991b1b;
+  background: #d1fae5;
+  color: #065f46;
 }
 
 .badge-impact.impact-high {
-  background: #fed7aa;
-  color: #9a3412;
+  background: #d1fae5;
+  color: #047857;
 }
 
 .badge-impact.impact-medium {
@@ -124,8 +124,13 @@
 }
 
 .badge-impact.impact-low {
-  background: #dbeafe;
-  color: #1e40af;
+  background: #fed7aa;
+  color: #9a3412;
+}
+
+.badge-impact.impact-very-low {
+  background: #fee2e2;
+  color: #991b1b;
 }
 
 .badge-effort {

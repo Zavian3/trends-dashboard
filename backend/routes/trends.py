@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from utils.auth_middleware import token_required, admin_required
 from database import db
+from datetime import datetime, timedelta
 
 bp = Blueprint('trends', __name__, url_prefix='/api/trends')
 
@@ -17,11 +18,6 @@ def get_trends(current_user):
         # Build query for data
         query = db.table('trends').select('*')
         count_query = db.table('trends').select('id', count='exact')
-        
-        # Non-admin users can only see active trends
-        if current_user['user_type'] != 'admin':
-            query = query.eq('status', 'active')
-            count_query = count_query.eq('status', 'active')
         
         # Apply filters from query params
         filters = request.args
@@ -96,10 +92,6 @@ def get_trends(current_user):
                 else:
                     wd_query = wd_query.in_(field, values)
             
-            # Non-admin users can only see active developments
-            if current_user['user_type'] != 'admin':
-                wd_query = wd_query.eq('status', 'active')
-            
             wd_response = wd_query.execute()
             
             # Get unique trend titles from matching developments
@@ -141,10 +133,6 @@ def get_trends(current_user):
             # Fetch all developments for these trends in a single query
             dev_query = db.table('workplace_developments').select('trend_title')
             
-            # Non-admin users can only see active developments
-            if current_user['user_type'] != 'admin':
-                dev_query = dev_query.eq('status', 'active')
-            
             # Apply WD filters to count query as well (if any)
             if wd_filters:
                 for field, values in wd_filters.items():
@@ -168,9 +156,45 @@ def get_trends(current_user):
                 if title:
                     dev_counts[title] = dev_counts.get(title, 0) + 1
             
+            # Fetch recent developments (last 2 weeks) for these trends in a single query
+            two_weeks_ago = (datetime.utcnow() - timedelta(weeks=2)).isoformat()
+            
+            recent_dev_query = db.table('workplace_developments').select('trend_title, created_at')
+            
+            # Apply same WD filters
+            if wd_filters:
+                for field, values in wd_filters.items():
+                    if len(values) == 1:
+                        recent_dev_query = recent_dev_query.eq(field, values[0])
+                    else:
+                        recent_dev_query = recent_dev_query.in_(field, values)
+            
+            # Filter by trend titles and date
+            if len(trend_titles) == 1:
+                recent_dev_query = recent_dev_query.eq('trend_title', trend_titles[0])
+            else:
+                recent_dev_query = recent_dev_query.in_('trend_title', trend_titles)
+            
+            recent_dev_query = recent_dev_query.gte('created_at', two_weeks_ago)
+            recent_dev_response = recent_dev_query.execute()
+            
+            # Count recent developments per trend
+            recent_dev_counts = {}
+            for dev in recent_dev_response.data:
+                title = dev.get('trend_title')
+                if title:
+                    recent_dev_counts[title] = recent_dev_counts.get(title, 0) + 1
+            
             # Add counts to trends
             for trend in trends:
                 trend['workplace_development_count'] = dev_counts.get(trend['title'], 0)
+                trend['recent_additions_count'] = recent_dev_counts.get(trend['title'], 0)
+            
+            # Filter out trends with zero workplace developments
+            trends = [t for t in trends if t['workplace_development_count'] > 0]
+            
+            # Update total count to reflect filtered trends
+            total_count = len(trends)
             
             print(f"DEBUG: Returning {len(trends)} trends with filtered dev counts")
             for trend in trends[:3]:  # Show first 3 trends
@@ -199,10 +223,6 @@ def get_trend(current_user, trend_id):
         
         trend = response.data[0]
         
-        # Check if user can access this trend
-        if current_user['user_type'] != 'admin' and trend['status'] != 'active':
-            return jsonify({'error': 'Trend not found'}), 404
-        
         return jsonify({'trend': trend}), 200
         
     except Exception as e:
@@ -220,18 +240,10 @@ def get_trend_workplace_developments(current_user, trend_id):
         
         trend = trend_response.data[0]
         
-        # Check if user can access this trend
-        if current_user['user_type'] != 'admin' and trend['status'] != 'active':
-            return jsonify({'error': 'Trend not found'}), 404
-        
         trend_title = trend['title']
         
         # Get workplace developments for this trend
         query = db.table('workplace_developments').select('*').eq('trend_title', trend_title)
-        
-        # Non-admin users can only see active developments
-        if current_user['user_type'] != 'admin':
-            query = query.eq('status', 'active')
         
         response = query.order('impact_score', desc=True).execute()
         
@@ -253,14 +265,8 @@ def get_trend_stats(current_user, trend_id):
         trend = trend_response.data[0]
         trend_title = trend['title']
         
-        # Check access
-        if current_user['user_type'] != 'admin' and trend['status'] != 'active':
-            return jsonify({'error': 'Trend not found'}), 404
-        
         # Get workplace developments count
         dev_query = db.table('workplace_developments').select('*').eq('trend_title', trend_title)
-        if current_user['user_type'] != 'admin':
-            dev_query = dev_query.eq('status', 'active')
         dev_response = dev_query.execute()
         developments = dev_response.data
         
@@ -436,9 +442,6 @@ def get_trends_stats(current_user):
     try:
         # Build query based on user type
         query = db.table('trends').select('*')
-        
-        if current_user['user_type'] != 'admin':
-            query = query.eq('status', 'active')
         
         # Apply filters from query params
         filters = request.args

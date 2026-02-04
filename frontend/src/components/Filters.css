@@ -488,3 +488,19 @@
   background-position: right 14px center;
   padding-right: 40px;
 }
+
+/* Required filter styling */
+.required-filter {
+  border: 2px solid #20126E !important;
+  font-weight: 500;
+}
+
+.required-filter:focus {
+  outline: none;
+  border-color: #20126E !important;
+  box-shadow: 0 0 0 3px rgba(32, 18, 110, 0.1);
+}
+
+.required-filter option:first-child {
+  color: #94a3b8;
+}

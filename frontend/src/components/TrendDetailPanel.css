@@ -111,9 +111,10 @@
   gap: 6px;
 }
 
+.tag-badge.impact-very-high,
 .tag-badge.impact-high {
-  background: #e8f5e9;
-  color: #4caf50;
+  background: #d1fae5;
+  color: #065f46;
 }
 
 .tag-badge.impact-medium {
@@ -121,7 +122,8 @@
   color: #fbc02d;
 }
 
-.tag-badge.impact-low {
+.tag-badge.impact-low,
+.tag-badge.impact-very-low {
   background: #ffebee;
   color: #f44336;
 }
@@ -632,9 +634,10 @@
   font-weight: 600;
 }
 
+.related-impact-badge.impact-very-high,
 .related-impact-badge.impact-high {
-  background: #e8f5e9;
-  color: #4caf50;
+  background: #d1fae5;
+  color: #065f46;
 }
 
 .related-impact-badge.impact-medium {
@@ -642,7 +645,8 @@
   color: #fbc02d;
 }
 
-.related-impact-badge.impact-low {
+.related-impact-badge.impact-low,
+.related-impact-badge.impact-very-low {
   background: #ffebee;
   color: #f44336;
 }

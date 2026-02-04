@@ -71,20 +71,22 @@ const Filters = ({
   filters, 
   onFilterChange, 
   departments, 
-  categories,
   sortBy,
-  onSortChange,
-  isAdmin 
+  onSortChange
 }) => {
   const handleMultiSelectChange = (field, values) => {
     onFilterChange({ [field]: values });
   };
 
+  const handleSectorChange = (e) => {
+    const value = e.target.value;
+    onFilterChange({ department_name: value ? [value] : [] });
+  };
+
   const clearAllFilters = () => {
+    // Keep department_name as it's required, only clear other filters
     onFilterChange({
-      status: [],
-      department_name: [],
-      category: [],
+      department_name: filters.department_name || [],
       time_horizon: [],
       scope: [],
       impact_label: [],
@@ -94,13 +96,6 @@ const Filters = ({
 
   // Prepare options for dropdowns
   const departmentOptions = departments.map(dept => ({ value: dept.name, label: dept.name }));
-  const categoryOptions = categories.map(cat => ({ value: cat.category_name, label: cat.category_name }));
-  
-  const statusOptions = isAdmin ? [
-    { value: 'draft', label: 'Draft' },
-    { value: 'active', label: 'Active' },
-    { value: 'archived', label: 'Archived' }
-  ] : [];
 
   const timeHorizonOptions = [
     { value: 'short_term', label: 'Short Term' },
@@ -143,12 +138,10 @@ const Filters = ({
     
     const allOptions = {
       department_name: departmentOptions,
-      category: categoryOptions,
       time_horizon: timeHorizonOptions,
       scope: scopeOptions,
       impact_label: impactLabelOptions,
-      training_effort: trainingEffortOptions,
-      ...(isAdmin && { status: statusOptions })
+      training_effort: trainingEffortOptions
     };
 
     Object.entries(filters).forEach(([key, values]) => {
@@ -182,21 +175,21 @@ const Filters = ({
     <div className="filters-container">
       <div className="filters-row">
         <div className="filters-group">
-          {/* Sector Filter (First) */}
-          <MultiSelectDropdown
-            label="Sector"
-            options={departmentOptions}
-            selectedValues={filters.department_name || []}
-            onChange={(values) => handleMultiSelectChange('department_name', values)}
-          />
-
-          {/* Category Filter */}
-          <MultiSelectDropdown
-            label="Category"
-            options={categoryOptions}
-            selectedValues={filters.category || []}
-            onChange={(values) => handleMultiSelectChange('category', values)}
-          />
+          {/* Sector Filter (Required - Single Select) */}
+          <div className="filter-group">
+            <select
+              id="sector-select"
+              value={(filters.department_name && filters.department_name[0]) || ''}
+              onChange={handleSectorChange}
+              className="multi-select-button sort-select-grid required-filter"
+              required
+            >
+              <option value="">Select Sector *</option>
+              {departmentOptions.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
 
           {/* Impact Label Filter */}
           <MultiSelectDropdown
@@ -229,16 +222,6 @@ const Filters = ({
             selectedValues={filters.scope || []}
             onChange={(values) => handleMultiSelectChange('scope', values)}
           />
-
-          {/* Status Filter (Admin Only) */}
-          {isAdmin && (
-            <MultiSelectDropdown
-              label="Status"
-              options={statusOptions}
-              selectedValues={filters.status || []}
-              onChange={(values) => handleMultiSelectChange('status', values)}
-            />
-          )}
 
           {/* Sort Dropdown - Now part of the grid */}
           <div className="filter-group">

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getDepartments, getCategories, bulkUpdateWorkplaceDevelopmentStatus, getWorkplaceDevelopments, getSkills } from '../utils/api';
+import { getDepartments, bulkUpdateWorkplaceDevelopmentStatus, getWorkplaceDevelopments, getSkills } from '../utils/api';
 import Header from '../components/Header';
 import Filters from '../components/Filters';
 import DashboardCards from '../components/DashboardCards';
@@ -89,30 +89,27 @@ const Dashboard = ({ showToast }) => {
   const [selectedDevelopments, setSelectedDevelopments] = useState([]);
   const [filters, setFilters] = useState({
     department_name: [],
-    category: [],
     time_horizon: [],
     scope: [],
-    status: [],
     impact_label: [],
     training_effort: []
   });
   const [sortBy, setSortBy] = useState('priority');
   const [departments, setDepartments] = useState([]);
-  const [categories, setCategories] = useState([]);
 
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
         setInitialLoading(true);
         
-        // Fetch departments and categories in parallel
-        const [deptData, catData] = await Promise.all([
-          getDepartments({ active_only: true }),
-          getCategories()
-        ]);
-        
+        // Fetch departments
+        const deptData = await getDepartments({ active_only: true });
         setDepartments(deptData.departments || []);
-        setCategories(catData.categories || []);
+        
+        // Show welcome toast after data loads
+        if (user && user.first_name && showToast) {
+          showToast(`Hi ${user.first_name}, this is your trend and skill dashboard.`, 'success');
+        }
       } catch (error) {
         console.error('Error fetching initial data:', error);
         showToast && showToast('Failed to load data', 'error');
@@ -257,47 +254,59 @@ const Dashboard = ({ showToast }) => {
           filters={filters}
           onFilterChange={handleFilterChange}
           departments={departments}
-          categories={categories}
           sortBy={sortBy}
           onSortChange={setSortBy}
-          isAdmin={isAdmin}
         />
 
-        {/* Dashboard Cards */}
-        <DashboardCards
-          filters={filters}
-          onTrendClick={handleTrendClick}
-          onDevelopmentClick={handleDevelopmentClick}
-          onSkillClick={handleSkillClick}
-        />
-
-        {/* Bulk Actions (when items selected) */}
-        {isAdmin && selectedDevelopments.length > 0 && (
-          <div className="bulk-actions">
-            <span className="selected-count">
-              {selectedDevelopments.length} selected
-            </span>
-            <button className="btn btn-approve" onClick={handleBulkApprove}>
-              ✓ Approve
-            </button>
-            <button className="btn btn-archive" onClick={handleBulkArchive}>
-              📦 Archive
-            </button>
-            <button 
-              className="btn btn-clear" 
-              onClick={() => setSelectedDevelopments([])}
-            >
-              Clear Selection
-            </button>
+        {/* Show message if no department selected */}
+        {(!filters.department_name || filters.department_name.length === 0) ? (
+          <div className="no-sector-message">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="10" stroke="#20126E" strokeWidth="2"/>
+              <path d="M12 16V12M12 8H12.01" stroke="#20126E" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+            <h2>Please Select a Sector</h2>
+            <p>Choose a sector from the dropdown above to view workplace developments and trends.</p>
           </div>
-        )}
+        ) : (
+          <>
+            {/* Dashboard Cards */}
+            <DashboardCards
+              filters={filters}
+              onTrendClick={handleTrendClick}
+              onDevelopmentClick={handleDevelopmentClick}
+              onSkillClick={handleSkillClick}
+            />
 
-        {/* Trends Table with Slide-in Panels */}
-        <TrendsTablePanel
-          filters={filters}
-          sortBy={sortBy}
-          isAdmin={isAdmin}
-        />
+            {/* Bulk Actions (when items selected) */}
+            {isAdmin && selectedDevelopments.length > 0 && (
+              <div className="bulk-actions">
+                <span className="selected-count">
+                  {selectedDevelopments.length} selected
+                </span>
+                <button className="btn btn-approve" onClick={handleBulkApprove}>
+                  ✓ Approve
+                </button>
+                <button className="btn btn-archive" onClick={handleBulkArchive}>
+                  📦 Archive
+                </button>
+                <button 
+                  className="btn btn-clear" 
+                  onClick={() => setSelectedDevelopments([])}
+                >
+                  Clear Selection
+                </button>
+              </div>
+            )}
+
+            {/* Trends Table with Slide-in Panels */}
+            <TrendsTablePanel
+              filters={filters}
+              sortBy={sortBy}
+              isAdmin={isAdmin}
+            />
+          </>
+        )}
 
         {/* Development Detail Panel (from cards) */}
         {selectedDevelopment && (

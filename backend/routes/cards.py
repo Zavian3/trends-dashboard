@@ -21,12 +21,9 @@ def get_top_trends(current_user):
         # Build query
         query = db.table('trends').select('*')
         
-        # Non-admin users can only see active trends
-        if current_user['user_type'] != 'admin':
-            query = query.eq('status', 'active')
-        
         # Apply department filter if provided
-        department_names = request.args.getlist('department_name')
+        # NOTE: Frontend sends array params as 'param[]', so we need to check both
+        department_names = request.args.getlist('department_name') or request.args.getlist('department_name[]')
         if department_names:
             if len(department_names) == 1:
                 query = query.eq('department_name', department_names[0])
@@ -41,8 +38,6 @@ def get_top_trends(current_user):
         for trend in trends:
             # Get count of workplace developments for this trend (coverage_count)
             dev_query = db.table('workplace_developments').select('id', count='exact').eq('trend_title', trend['title'])
-            if current_user['user_type'] != 'admin':
-                dev_query = dev_query.eq('status', 'active')
             dev_response = dev_query.execute()
             coverage_count = dev_response.count if hasattr(dev_response, 'count') else len(dev_response.data)
             
@@ -52,11 +47,13 @@ def get_top_trends(current_user):
             # Note: admin_weight would need to be added as a field to trends table
             top_trend_score = coverage_count * priority_score
             
-            scored_trends.append({
-                **trend,
-                'coverage_count': coverage_count,
-                'top_trend_score': top_trend_score
-            })
+            # Only include trends with at least one workplace development
+            if coverage_count > 0:
+                scored_trends.append({
+                    **trend,
+                    'coverage_count': coverage_count,
+                    'top_trend_score': top_trend_score
+                })
         
         # Sort by top_trend_score (descending) and take top N
         scored_trends.sort(key=lambda x: x['top_trend_score'], reverse=True)
@@ -91,12 +88,9 @@ def get_quick_wins(current_user):
         # Build query
         query = db.table('workplace_developments').select('*')
         
-        # Non-admin users can only see active developments
-        if current_user['user_type'] != 'admin':
-            query = query.eq('status', 'active')
-        
         # Apply filters if provided
-        department_names = request.args.getlist('department_name')
+        # NOTE: Frontend sends array params as 'param[]', so we need to check both
+        department_names = request.args.getlist('department_name') or request.args.getlist('department_name[]')
         if department_names:
             # Need to join with trends to filter by department
             # For now, we'll fetch all and filter in Python
@@ -169,10 +163,8 @@ def get_trending_skills(current_user):
         skills_response = skills_query.execute()
         skills = skills_response.data
         
-        # Get all active workplace developments with their impact scores
+        # Get all workplace developments with their impact scores
         dev_query = db.table('workplace_developments').select('title, impact_score')
-        if current_user['user_type'] != 'admin':
-            dev_query = dev_query.eq('status', 'active')
         dev_response = dev_query.execute()
         developments_map = {dev['title']: dev['impact_score'] for dev in dev_response.data}
         
@@ -262,7 +254,10 @@ def get_cards_overview(current_user):
     """
     try:
         # Get department filter if provided
-        department_names = request.args.getlist('department_name')
+        # NOTE: Frontend sends array params as 'param[]', so we need to check both
+        department_names = request.args.getlist('department_name') or request.args.getlist('department_name[]')
+        
+        print(f"DEBUG Cards Overview: Received department_names filter: {department_names}")
         
         # Build query params for sub-requests
         query_params = {'expanded': 'false'}
@@ -271,21 +266,54 @@ def get_cards_overview(current_user):
         
         # Get top trends (top 5)
         trends_query = db.table('trends').select('*')
-        if current_user['user_type'] != 'admin':
-            trends_query = trends_query.eq('status', 'active')
         if department_names:
             if len(department_names) == 1:
                 trends_query = trends_query.eq('department_name', department_names[0])
             else:
                 trends_query = trends_query.in_('department_name', department_names)
         
-        trends_response = trends_query.limit(5).order('priority_score', desc=True).execute()
-        top_trends = trends_response.data[:5]
+        trends_response = trends_query.order('priority_score', desc=True).execute()
         
-        # Get quick wins (top 5)
+        # Filter out trends with zero workplace developments and get top 5
+        trends_with_devs = []
+        for trend in trends_response.data:
+            # Get count of workplace developments for this trend
+            dev_count_query = db.table('workplace_developments').select('id', count='exact').eq('trend_title', trend['title'])
+            dev_count_response = dev_count_query.execute()
+            coverage_count = dev_count_response.count if hasattr(dev_count_response, 'count') else len(dev_count_response.data)
+            
+            if coverage_count > 0:
+                trend['coverage_count'] = coverage_count
+                trends_with_devs.append(trend)
+        
+        top_trends = trends_with_devs[:5]
+        
+        print(f"DEBUG Cards: Filtered to {len(trends_with_devs)} trends for department {department_names}")
+        for trend in trends_with_devs[:3]:
+            print(f"  - Trend: {trend['title']} (Dept: {trend.get('department_name')})")
+        
+        # Get all trend titles from the filtered trends for filtering developments
+        all_filtered_trend_titles = [t['title'] for t in trends_with_devs]
+        
+        print(f"DEBUG Cards: Using {len(all_filtered_trend_titles)} trend titles to filter workplace developments")
+        
+        # Get quick wins (top 5) - only from filtered trends
         dev_query = db.table('workplace_developments').select('*')
-        if current_user['user_type'] != 'admin':
-            dev_query = dev_query.eq('status', 'active')
+        
+        # Filter workplace developments by trend titles (department filter)
+        if all_filtered_trend_titles:
+            if len(all_filtered_trend_titles) == 1:
+                dev_query = dev_query.eq('trend_title', all_filtered_trend_titles[0])
+            else:
+                dev_query = dev_query.in_('trend_title', all_filtered_trend_titles)
+        else:
+            # No trends in this department, return empty
+            return jsonify({
+                'top_trends': [],
+                'quick_wins': [],
+                'trending_skills': []
+            }), 200
+        
         dev_response = dev_query.execute()
         
         # Calculate quick_win_score
@@ -303,8 +331,23 @@ def get_cards_overview(current_user):
         scored_devs.sort(key=lambda x: x['quick_win_score'], reverse=True)
         quick_wins = scored_devs[:5]
         
-        # Get trending skills (top 5)
-        skills_response = db.table('skills').select('*').execute()
+        print(f"DEBUG Cards: Found {len(scored_devs)} quick wins from filtered developments")
+        for qw in quick_wins[:3]:
+            print(f"  - Quick Win: {qw['title']} (Trend: {qw.get('trend_title')})")
+        
+        # Get trending skills (top 5) - only from filtered workplace developments
+        filtered_dev_titles = [dev['title'] for dev in dev_response.data]
+        
+        skills_query = db.table('skills').select('*')
+        
+        # Filter skills by workplace development titles (department filter)
+        if filtered_dev_titles:
+            if len(filtered_dev_titles) == 1:
+                skills_query = skills_query.eq('workplace_development_title', filtered_dev_titles[0])
+            else:
+                skills_query = skills_query.in_('workplace_development_title', filtered_dev_titles)
+        
+        skills_response = skills_query.execute()
         skill_heat_map = {}
         
         dev_map = {dev['title']: dev['impact_score'] for dev in dev_response.data}
@@ -327,6 +370,10 @@ def get_cards_overview(current_user):
         trending_skills = list(skill_heat_map.values())
         trending_skills.sort(key=lambda x: x['skill_heat'], reverse=True)
         trending_skills = trending_skills[:5]
+        
+        print(f"DEBUG Cards: Found {len(skill_heat_map)} unique skills from filtered developments")
+        for skill in trending_skills[:3]:
+            print(f"  - Skill: {skill['skill_name']} (Heat: {skill['skill_heat']})")
         
         return jsonify({
             'top_trends': top_trends,

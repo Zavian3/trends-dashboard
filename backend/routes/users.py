@@ -44,14 +44,19 @@ def create_user(current_user):
         hashed_password = bcrypt.hashpw(data['password'].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         
         # Prepare user data
+        # Convert empty strings to None for date_of_birth
+        date_of_birth = data.get('date_of_birth')
+        if date_of_birth == '' or date_of_birth == 'null':
+            date_of_birth = None
+        
         user_data = {
             'email': data['email'],
             'password': hashed_password,
             'first_name': data['first_name'],
             'last_name': data['last_name'],
             'user_type': data['user_type'],
-            'gender': data.get('gender'),
-            'date_of_birth': data.get('date_of_birth'),
+            'gender': data.get('gender') if data.get('gender') else None,
+            'date_of_birth': date_of_birth,
             'is_active': data.get('is_active', True)
         }
         
@@ -90,9 +95,13 @@ def update_user(current_user, user_id):
                 return jsonify({'error': f'user_type must be one of: {", ".join(valid_user_types)}'}), 400
             update_data['user_type'] = data['user_type']
         if 'gender' in data:
-            update_data['gender'] = data['gender']
+            update_data['gender'] = data['gender'] if data['gender'] else None
         if 'date_of_birth' in data:
-            update_data['date_of_birth'] = data['date_of_birth']
+            # Convert empty strings to None for date_of_birth
+            date_of_birth = data['date_of_birth']
+            if date_of_birth == '' or date_of_birth == 'null':
+                date_of_birth = None
+            update_data['date_of_birth'] = date_of_birth
         if 'is_active' in data:
             update_data['is_active'] = data['is_active']
         if 'password' in data:

@@ -18,11 +18,6 @@ def get_workplace_developments(current_user):
         query = db.table('workplace_developments').select('*')
         count_query = db.table('workplace_developments').select('id', count='exact')
         
-        # Non-admin users can only see active developments
-        if current_user['user_type'] != 'admin':
-            query = query.eq('status', 'active')
-            count_query = count_query.eq('status', 'active')
-        
         # Apply filters from query params
         filters = request.args
         
@@ -139,10 +134,6 @@ def get_workplace_development(current_user, development_id):
         
         development = response.data[0]
         
-        # Check if user can access this development
-        if current_user['user_type'] != 'admin' and development['status'] != 'active':
-            return jsonify({'error': 'Workplace development not found'}), 404
-        
         # Get associated skills
         skills_response = db.table('skills').select('*').eq('workplace_development_title', development['title']).execute()
         development['skills'] = skills_response.data
@@ -166,10 +157,6 @@ def get_developments_by_trend(current_user, trend_id):
         
         # Get workplace developments for this trend
         query = db.table('workplace_developments').select('*').eq('trend_title', trend_title)
-        
-        # Non-admin users can only see active developments
-        if current_user['user_type'] != 'admin':
-            query = query.eq('status', 'active')
         
         response = query.order('impact_score', desc=True).execute()
         
@@ -292,9 +279,6 @@ def get_workplace_development_stats(current_user):
     try:
         # Build query based on user type
         query = db.table('workplace_developments').select('*')
-        
-        if current_user['user_type'] != 'admin':
-            query = query.eq('status', 'active')
         
         # Apply filters from query params (for filtered stats)
         filters = request.args
