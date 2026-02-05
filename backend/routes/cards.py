@@ -274,14 +274,30 @@ def get_cards_overview(current_user):
         
         trends_response = trends_query.order('priority_score', desc=True).execute()
         
+        # Fetch all workplace developments at once to count coverage
+        all_devs_query = db.table('workplace_developments').select('trend_title')
+        if department_names:
+            # Filter by trend titles from the filtered trends
+            trend_titles = [t['title'] for t in trends_response.data]
+            if trend_titles:
+                if len(trend_titles) == 1:
+                    all_devs_query = all_devs_query.eq('trend_title', trend_titles[0])
+                else:
+                    # Chunk if there are too many trend titles
+                    all_devs_query = all_devs_query.in_('trend_title', trend_titles)
+        
+        all_devs_response = all_devs_query.execute()
+        
+        # Count developments per trend
+        dev_count_map = {}
+        for dev in all_devs_response.data:
+            trend_title = dev['trend_title']
+            dev_count_map[trend_title] = dev_count_map.get(trend_title, 0) + 1
+        
         # Filter out trends with zero workplace developments and get top 5
         trends_with_devs = []
         for trend in trends_response.data:
-            # Get count of workplace developments for this trend
-            dev_count_query = db.table('workplace_developments').select('id', count='exact').eq('trend_title', trend['title'])
-            dev_count_response = dev_count_query.execute()
-            coverage_count = dev_count_response.count if hasattr(dev_count_response, 'count') else len(dev_count_response.data)
-            
+            coverage_count = dev_count_map.get(trend['title'], 0)
             if coverage_count > 0:
                 trend['coverage_count'] = coverage_count
                 trends_with_devs.append(trend)
@@ -336,25 +352,24 @@ def get_cards_overview(current_user):
             print(f"  - Quick Win: {qw['title']} (Trend: {qw.get('trend_title')})")
         
         # Get trending skills (top 5) - only from filtered workplace developments
-        filtered_dev_titles = [dev['title'] for dev in dev_response.data]
+        filtered_dev_titles = set([dev['title'] for dev in dev_response.data])
         
-        skills_query = db.table('skills').select('*')
+        # Fetch all skills at once and filter in Python (to avoid Supabase .in() limits)
+        skills_response = db.table('skills').select('*').execute()
+        
+        skill_heat_map = {}
+        dev_map = {dev['title']: dev['impact_score'] for dev in dev_response.data}
         
         # Filter skills by workplace development titles (department filter)
-        if filtered_dev_titles:
-            if len(filtered_dev_titles) == 1:
-                skills_query = skills_query.eq('workplace_development_title', filtered_dev_titles[0])
-            else:
-                skills_query = skills_query.in_('workplace_development_title', filtered_dev_titles)
-        
-        skills_response = skills_query.execute()
-        skill_heat_map = {}
-        
-        dev_map = {dev['title']: dev['impact_score'] for dev in dev_response.data}
         for skill in skills_response.data:
+            dev_title = skill['workplace_development_title']
+            
+            # Only include skills from filtered workplace developments
+            if dev_title not in filtered_dev_titles:
+                continue
+            
             skill_name = skill['skill_name']
             skill_type = skill['skill_type']
-            dev_title = skill['workplace_development_title']
             dev_impact = dev_map.get(dev_title, 0)
             
             if skill_name not in skill_heat_map:

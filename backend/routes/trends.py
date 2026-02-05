@@ -115,20 +115,14 @@ def get_trends(current_user):
                 query = query.in_('title', matching_trend_titles)
                 count_query = count_query.in_('title', matching_trend_titles)
         
-        # Apply pagination and ordering (by priority score)
-        query = query.order('priority_score', desc=True).order('momentum_score', desc=True).range(offset, offset + limit - 1)
+        # Execute query WITHOUT pagination first to get all matching trends
+        all_trends_response = query.order('priority_score', desc=True).order('momentum_score', desc=True).execute()
+        all_trends = all_trends_response.data
         
-        # Execute queries
-        count_response = count_query.execute()
-        data_response = query.execute()
-        
-        total_count = count_response.count if hasattr(count_response, 'count') else len(data_response.data)
-        trends = data_response.data
-        
-        # OPTIMIZED: Get all development counts in ONE query
-        if trends:
+        # OPTIMIZED: Get all development counts in ONE query for ALL trends
+        if all_trends:
             # Get all trend titles
-            trend_titles = [t['title'] for t in trends]
+            all_trend_titles = [t['title'] for t in all_trends]
             
             # Fetch all developments for these trends in a single query
             dev_query = db.table('workplace_developments').select('trend_title')
@@ -142,10 +136,10 @@ def get_trends(current_user):
                         dev_query = dev_query.in_(field, values)
             
             # Filter by trend titles
-            if len(trend_titles) == 1:
-                dev_query = dev_query.eq('trend_title', trend_titles[0])
+            if len(all_trend_titles) == 1:
+                dev_query = dev_query.eq('trend_title', all_trend_titles[0])
             else:
-                dev_query = dev_query.in_('trend_title', trend_titles)
+                dev_query = dev_query.in_('trend_title', all_trend_titles)
             
             dev_response = dev_query.execute()
             
@@ -170,10 +164,10 @@ def get_trends(current_user):
                         recent_dev_query = recent_dev_query.in_(field, values)
             
             # Filter by trend titles and date
-            if len(trend_titles) == 1:
-                recent_dev_query = recent_dev_query.eq('trend_title', trend_titles[0])
+            if len(all_trend_titles) == 1:
+                recent_dev_query = recent_dev_query.eq('trend_title', all_trend_titles[0])
             else:
-                recent_dev_query = recent_dev_query.in_('trend_title', trend_titles)
+                recent_dev_query = recent_dev_query.in_('trend_title', all_trend_titles)
             
             recent_dev_query = recent_dev_query.gte('created_at', two_weeks_ago)
             recent_dev_response = recent_dev_query.execute()
@@ -186,19 +180,24 @@ def get_trends(current_user):
                     recent_dev_counts[title] = recent_dev_counts.get(title, 0) + 1
             
             # Add counts to trends
-            for trend in trends:
+            for trend in all_trends:
                 trend['workplace_development_count'] = dev_counts.get(trend['title'], 0)
                 trend['recent_additions_count'] = recent_dev_counts.get(trend['title'], 0)
             
             # Filter out trends with zero workplace developments
-            trends = [t for t in trends if t['workplace_development_count'] > 0]
+            all_trends = [t for t in all_trends if t['workplace_development_count'] > 0]
             
-            # Update total count to reflect filtered trends
-            total_count = len(trends)
+            # Now apply pagination to filtered trends
+            total_count = len(all_trends)
+            trends = all_trends[offset:offset + limit]
             
             print(f"DEBUG: Returning {len(trends)} trends with filtered dev counts")
             for trend in trends[:3]:  # Show first 3 trends
                 print(f"  - {trend['title']}: {trend['workplace_development_count']} filtered developments")
+        else:
+            # No trends found
+            trends = []
+            total_count = 0
         
         return jsonify({
             'trends': trends,
